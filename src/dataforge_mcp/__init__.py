@@ -6,7 +6,7 @@ Usage as library (no MCP needed):
 
     service = create_semantic_service()
     projects = await service.list_projects()
-    rmd = await service.get_rmd(project_id=392, version_id=948)
+    rmd = await service.get_rmd(project_id=1, version_id=1)
 
 Usage as MCP server:
 

@@ -39,9 +39,15 @@ class CanonicalMeasure(BaseModel):
     formula: str | None = None
     restrictions: str | None = None
     connected_source: CanonicalConnectedSource | None = None
+    original_source_type: str | None = None
+    original_source: str | None = None
+    original_object: str | None = None
+    report_for_verification: str | None = None
+    comment: str | None = None
+    display_data_type: str | None = None
     status: str | None = None
     relevance: str | None = None
-    required: bool = False
+    required: bool | None = False
     visibility: str | None = None
     responsible_for_data: str | None = None
     variation: str | None = None
@@ -57,10 +63,18 @@ class CanonicalDimension(BaseModel):
     dimension_group: str | None = None
     data_type: str | None = None
     connected_source: CanonicalConnectedSource | None = None
+    dimension_type: str | None = None
+    original_source_type: str | None = None
+    original_source: str | None = None
+    original_object: str | None = None
+    comment: str | None = None
+    formula: str | None = None
     value_options: str | list | None = None
+    display_data_type: str | None = None
+    source_data_type: str | None = None
     status: str | None = None
     relevance: str | None = None
-    required: bool = False
+    required: bool | None = False
     visibility: str | None = None
     responsible_for_data: str | None = None
     raw: dict[str, Any] = Field(default_factory=dict)

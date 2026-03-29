@@ -65,7 +65,8 @@ class MeasureRaw(BaseModel):
     comment: str | None = None
     status: str | None = None
     relevance: str | None = None
-    required: bool = False
+    display_data_type: str | None = None
+    required: bool | None = False
     visibility: str | None = None
     responsible_for_data: str | None = None
     variation: str | None = None
@@ -90,11 +91,15 @@ class DimensionRaw(BaseModel):
     dimension_group: str | None = None
     data_type: str | None = None
     connected_source: ConnectedSourceRaw | None = None
+    dimension_type: str | None = None
     comment: str | None = None
+    formula: str | None = None
     value_options: str | list | None = None
+    display_data_type: str | None = None
+    source_data_type: str | None = None
     status: str | None = None
     relevance: str | None = None
-    required: bool = False
+    required: bool | None = False
     visibility: str | None = None
     responsible_for_data: str | None = None
 

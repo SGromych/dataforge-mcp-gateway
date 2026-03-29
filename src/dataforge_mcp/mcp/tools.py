@@ -11,102 +11,107 @@ from mcp.types import TextContent, Tool
 from dataforge_mcp.application.use_cases import SemanticService
 from dataforge_mcp.errors import DataForgeError
 
-TOOLS = [
-    Tool(
-        name="df_health",
-        description="Check DataForge MCP server health, API connectivity and cache status.",
-        inputSchema={"type": "object", "properties": {}, "required": []},
-    ),
-    Tool(
-        name="df_list_projects",
-        description="List available DataForge projects.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "page": {"type": "integer", "default": 1},
-                "page_size": {"type": "integer", "default": 100},
-                "use_cache": {"type": "boolean", "default": True},
+
+def _build_tools(default_language: str) -> list[Tool]:
+    """Build tool definitions using the configured default language."""
+    return [
+        Tool(
+            name="df_health",
+            description="Check DataForge MCP server health, API connectivity and cache status.",
+            inputSchema={"type": "object", "properties": {}, "required": []},
+        ),
+        Tool(
+            name="df_list_projects",
+            description="List available DataForge projects.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "page": {"type": "integer", "default": 1},
+                    "page_size": {"type": "integer", "default": 100},
+                    "use_cache": {"type": "boolean", "default": True},
+                },
+                "required": [],
             },
-            "required": [],
-        },
-    ),
-    Tool(
-        name="df_list_versions",
-        description="List versions for a DataForge project.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "project_id": {"type": "integer"},
-                "page": {"type": "integer", "default": 1},
-                "page_size": {"type": "integer", "default": 100},
-                "use_cache": {"type": "boolean", "default": True},
+        ),
+        Tool(
+            name="df_list_versions",
+            description="List versions for a DataForge project.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "integer"},
+                    "page": {"type": "integer", "default": 1},
+                    "page_size": {"type": "integer", "default": 100},
+                    "use_cache": {"type": "boolean", "default": True},
+                },
+                "required": ["project_id"],
             },
-            "required": ["project_id"],
-        },
-    ),
-    Tool(
-        name="df_get_measures",
-        description="Get measures (metrics) for a project version.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "project_id": {"type": "integer"},
-                "version_id": {"type": "integer"},
-                "language": {"type": "string", "default": "ru"},
-                "use_cache": {"type": "boolean", "default": True},
+        ),
+        Tool(
+            name="df_get_measures",
+            description="Get measures (metrics) for a project version.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "integer"},
+                    "version_id": {"type": "integer"},
+                    "language": {"type": "string", "default": default_language},
+                    "use_cache": {"type": "boolean", "default": True},
+                },
+                "required": ["project_id", "version_id"],
             },
-            "required": ["project_id", "version_id"],
-        },
-    ),
-    Tool(
-        name="df_get_dimensions",
-        description="Get dimensions for a project version.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "project_id": {"type": "integer"},
-                "version_id": {"type": "integer"},
-                "language": {"type": "string", "default": "ru"},
-                "use_cache": {"type": "boolean", "default": True},
+        ),
+        Tool(
+            name="df_get_dimensions",
+            description="Get dimensions for a project version.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "integer"},
+                    "version_id": {"type": "integer"},
+                    "language": {"type": "string", "default": default_language},
+                    "use_cache": {"type": "boolean", "default": True},
+                },
+                "required": ["project_id", "version_id"],
             },
-            "required": ["project_id", "version_id"],
-        },
-    ),
-    Tool(
-        name="df_get_rmd",
-        description="Get full RMD (measures + dimensions) for a project version.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "project_id": {"type": "integer"},
-                "version_id": {"type": "integer"},
-                "language": {"type": "string", "default": "ru"},
-                "use_cache": {"type": "boolean", "default": True},
-                "include_raw": {"type": "boolean", "default": False},
+        ),
+        Tool(
+            name="df_get_rmd",
+            description="Get full RMD (measures + dimensions) for a project version.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "integer"},
+                    "version_id": {"type": "integer"},
+                    "language": {"type": "string", "default": default_language},
+                    "use_cache": {"type": "boolean", "default": True},
+                    "include_raw": {"type": "boolean", "default": False},
+                },
+                "required": ["project_id", "version_id"],
             },
-            "required": ["project_id", "version_id"],
-        },
-    ),
-    Tool(
-        name="df_refresh_cache",
-        description="Force refresh cached RMD data for a project version.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "project_id": {"type": "integer"},
-                "version_id": {"type": "integer"},
-                "language": {"type": "string", "default": "ru"},
+        ),
+        Tool(
+            name="df_refresh_cache",
+            description="Force refresh cached RMD data for a project version.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "integer"},
+                    "version_id": {"type": "integer"},
+                    "language": {"type": "string", "default": default_language},
+                },
+                "required": ["project_id", "version_id"],
             },
-            "required": ["project_id", "version_id"],
-        },
-    ),
-]
+        ),
+    ]
 
 
 def register_tools(server: Server, service: SemanticService) -> None:
+    tools = _build_tools(service.settings.default_language)
+
     @server.list_tools()
     async def list_tools() -> list[Tool]:
-        return TOOLS
+        return tools
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
