@@ -1,52 +1,144 @@
-# DataForge Semantic MCP Server — Documentation Pack
+# DataForge Semantic MCP Server
 
-Этот набор документов описывает, как с нуля реализовать **отдельный MCP-сервер**, который:
+Read-only semantic gateway between AI agents and [DataForge](https://businessqlik.com) Product API. Fetches projects, versions, measures, dimensions and full RMD, normalizes and caches the data, and exposes it via MCP protocol or as a Python library.
 
-- подключается только к **DataForge Product API**
-- забирает из него **семантический слой**: проекты, версии, measures, dimensions, full RMD
-- нормализует и кэширует эти данные
-- отдает их в **любые AI-агенты** через MCP
-- **не занимается** text-to-SQL, доступом к БД и выполнением SQL
+## Features
 
-## Состав пакета
+- **Library-first** — use directly from Python, no MCP server required
+- **MCP adapter** — 7 tools for Claude Desktop, Cursor and other MCP clients
+- **Caching** — file-based cache with TTL and last-known-good fallback
+- **Normalization** — inconsistent API fields mapped to clean canonical models
+- **Retry & error handling** — exponential backoff on 5xx, proper error codes for auth issues
 
-1. `01_PRODUCT_SCOPE.md` — границы продукта и что именно он должен делать
-2. `02_TARGET_ARCHITECTURE.md` — целевая архитектура сервера
-3. `03_MCP_TOOLS_SPEC.md` — полный контракт MCP tools
-4. `04_DATAFORGE_API_MAPPING.md` — как маппить Product API DataForge на MCP
-5. `05_CONFIG_AND_SECURITY.md` — конфигурация, ключи, кэш, безопасность
-6. `06_IMPLEMENTATION_PLAN.md` — пошаговый план реализации
-7. `07_REPOSITORY_BOOTSTRAP.md` — структура нового репозитория
-8. `08_TEST_PLAN.md` — как тестировать сервер
-9. `09_CLAUDE_MD.md` — готовый `CLAUDE.md` для нового репозитория
-10. `10_BUILD_PROMPTS.md` — промпты для Claude Code / Cursor / Copilot
+## Quick Start
 
-## Главная идея
+### Installation
 
-Новый продукт — это не "обертка над локальным JSON", а **Semantic Gateway** между AI-агентом и DataForge.
+```bash
+pip install -e ".[dev]"
+```
 
-Поток работы должен быть таким:
+### Configuration
 
-1. AI-агент подключается к MCP-серверу
-2. MCP-сервер аутентифицируется в DataForge через `X-Api-Key`
-3. Сервер получает список проектов и версий
-4. Сервер по запросу вытягивает:
-   - measures
-   - dimensions
-   - full RMD
-5. Сервер нормализует ответ в единый внутренний формат
-6. Сервер отдает агенту компактный и удобный семантический контекст
+Copy `.env.example` to `.env` and set your values:
 
-## Что исключено из текущего MVP
+```env
+DATAFORGE_BASE_URL=https://api.prod-df.businessqlik.com
+DATAFORGE_API_KEY=your_api_key_here
+DEFAULT_LANGUAGE=ru
+```
 
-В этом пакете намеренно **не рассматриваются**:
+### As a Python Library
 
-- text-to-SQL
-- выполнение SQL в БД
-- SQL Guard
-- пул соединений к PostgreSQL
-- introspection схем БД
-- генерация запросов к таблицам
-- извлечение фактических данных из DWH
+```python
+import asyncio
+from dataforge_mcp import create_semantic_service
 
-Это можно добавить позже отдельным модулем, но **не сейчас**.
+async def main():
+    service = create_semantic_service()
+
+    projects = await service.list_projects()
+    print(projects)
+
+    versions = await service.list_versions(project_id=392)
+    print(versions)
+
+    rmd = await service.get_rmd(project_id=392, version_id=948)
+    print(f"Measures: {rmd['stats']['measure_count']}")
+    print(f"Dimensions: {rmd['stats']['dimension_count']}")
+
+asyncio.run(main())
+```
+
+### As an MCP Server (stdio)
+
+```bash
+python -m dataforge_mcp
+```
+
+Add to Claude Desktop config (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "dataforge": {
+      "command": "python",
+      "args": ["-m", "dataforge_mcp"],
+      "env": {
+        "DATAFORGE_BASE_URL": "https://api.prod-df.businessqlik.com",
+        "DATAFORGE_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+### Docker (SSE mode)
+
+```bash
+cp .env.example .env
+# edit .env with your API key
+docker compose up
+```
+
+## MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `df_health` | Check server, API and cache status |
+| `df_list_projects` | List available DataForge projects |
+| `df_list_versions` | List versions for a project |
+| `df_get_measures` | Get measures (metrics) for a project version |
+| `df_get_dimensions` | Get dimensions for a project version |
+| `df_get_rmd` | Get full RMD (measures + dimensions) |
+| `df_refresh_cache` | Force refresh cached data |
+
+## Architecture
+
+```
+AI Agent / MCP Client
+    |
+    v
+MCP Adapter (mcp/)           — thin wrappers, no business logic
+    |
+    v
+SemanticService (application/) — cache-first orchestration (CORE)
+    |
+    +--> DataForgeClient (dataforge/) — HTTP calls with retry
+    +--> Normalizer (semantic/)       — raw API -> canonical models
+    +--> FileCacheStore (cache/)      — TTL + last-known-good fallback
+```
+
+`SemanticService` is the single entry point. MCP tools only delegate to it.
+
+## Development
+
+```bash
+# Install with dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Lint
+ruff check src/ tests/
+
+# Format
+ruff format src/ tests/
+```
+
+## Configuration Reference
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATAFORGE_BASE_URL` | `https://api.prod-df.businessqlik.com` | DataForge API base URL |
+| `DATAFORGE_API_KEY` | — | API key (required) |
+| `DEFAULT_LANGUAGE` | `ru` | Default language for measures/dimensions |
+| `CACHE_DIR` | `./cache` | Cache directory path |
+| `CACHE_TTL_SECONDS` | `3600` | Cache TTL in seconds |
+| `MCP_TRANSPORT` | `stdio` | Transport: `stdio` or `sse` |
+| `LOG_LEVEL` | `INFO` | Log level |
+
+## Design Documents
+
+Detailed specs are in the [`docs/`](docs/) directory.

@@ -95,4 +95,4 @@ Use `respx` to mock DataForge HTTP calls. Four test areas: client, normalizer, c
 
 ## Design Documents
 
-Detailed specs are in the numbered markdown files (`01_PRODUCT_SCOPE.md` through `10_BUILD_PROMPTS.md`) at the repo root. Refer to these for full API contracts, canonical model field definitions, and implementation plans.
+Detailed specs are in the `docs/` directory (`01_PRODUCT_SCOPE.md` through `10_BUILD_PROMPTS.md`). Refer to these for full API contracts, canonical model field definitions, and implementation plans.
