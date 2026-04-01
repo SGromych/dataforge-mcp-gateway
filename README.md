@@ -541,7 +541,3 @@ ruff format src/ tests/
 | `CACHE_TTL_SECONDS` | `3600` | Cache TTL in seconds |
 | `MCP_TRANSPORT` | `stdio` | Transport: `stdio` or `sse` |
 | `LOG_LEVEL` | `INFO` | Log level |
-
-## Design Documents
-
-Detailed specs are in the [`docs/`](docs/) directory.
