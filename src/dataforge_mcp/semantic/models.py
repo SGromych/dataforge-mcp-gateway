@@ -80,9 +80,33 @@ class CanonicalDimension(BaseModel):
     raw: dict[str, Any] = Field(default_factory=dict)
 
 
+class CanonicalFact(BaseModel):
+    row_number: str | int | None = None
+    group: str | None = None
+    block: str | None = None
+    name: str | None = None
+    description: str | None = None
+    original_source_type: str | None = None
+    original_source: str | None = None
+    original_object: str | None = None
+    source_data_type: str | None = None
+    fact_type: str | None = None
+    formula: str | None = None
+    connected_source: CanonicalConnectedSource | None = None
+    report_for_verification: str | None = None
+    comment: str | None = None
+    status: str | None = None
+    relevance: str | None = None
+    required: bool | None = False
+    visibility: str | None = None
+    responsible_for_data: str | None = None
+    raw: dict[str, Any] = Field(default_factory=dict)
+
+
 class SemanticStats(BaseModel):
     measure_count: int = 0
     dimension_count: int = 0
+    fact_count: int = 0
 
 
 class CanonicalSemanticContext(BaseModel):
@@ -90,4 +114,5 @@ class CanonicalSemanticContext(BaseModel):
     version: CanonicalVersion
     measures: list[CanonicalMeasure]
     dimensions: list[CanonicalDimension]
+    facts: list[CanonicalFact] = Field(default_factory=list)
     stats: SemanticStats

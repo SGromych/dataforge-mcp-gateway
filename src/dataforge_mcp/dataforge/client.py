@@ -12,10 +12,25 @@ from dataforge_mcp.errors import DataForgeError, ErrorCode, map_http_error
 from dataforge_mcp.logging import get_logger
 
 from .schemas import (
+    ConnectionDetail,
+    ConnectionListResponse,
+    ConnectionSchemaResponse,
+    ConsolidatedRmdResponse,
+    DataMartDetail,
+    DataMartListResponse,
+    DimensionGroupDetail,
+    DimensionGroupListResponse,
     DimensionListResponse,
+    FactListResponse,
+    FactTableDetail,
+    FactTableListResponse,
     MeasureListResponse,
+    PhysicalViewResponse,
     ProjectListResponse,
+    RelationshipDetail,
+    RelationshipListResponse,
     RmdResponse,
+    SqlGenerationResponse,
     VersionListResponse,
 )
 
@@ -93,9 +108,14 @@ class DataForgeClient:
                 raise
         raise last_exc  # type: ignore[misc]
 
-    async def get_projects(
-        self, page: int = 1, page_size: int = 100
-    ) -> ProjectListResponse:
+    # -----------------------------------------------------------------------
+    # RMD API  (/rmd-api/v1/)
+    # -----------------------------------------------------------------------
+
+    def _rmd_prefix(self, project_id: int, version_id: int) -> str:
+        return f"/rmd-api/v1/projects/{project_id}/versions/{version_id}"
+
+    async def get_projects(self, page: int = 1, page_size: int = 100) -> ProjectListResponse:
         params: dict[str, Any] = {"page": page, "pageSize": page_size}
         resp = await self._request("GET", "/rmd-api/v1/projects", params=params)
         return ProjectListResponse.model_validate(resp.json())
@@ -118,7 +138,7 @@ class DataForgeClient:
         params: dict[str, Any] = {"language": language}
         resp = await self._request(
             "GET",
-            f"/rmd-api/v1/projects/{project_id}/versions/{version_id}/measures",
+            f"{self._rmd_prefix(project_id, version_id)}/measures",
             params=params,
         )
         return MeasureListResponse.model_validate(resp.json())
@@ -132,10 +152,24 @@ class DataForgeClient:
         params: dict[str, Any] = {"language": language}
         resp = await self._request(
             "GET",
-            f"/rmd-api/v1/projects/{project_id}/versions/{version_id}/dimensions",
+            f"{self._rmd_prefix(project_id, version_id)}/dimensions",
             params=params,
         )
         return DimensionListResponse.model_validate(resp.json())
+
+    async def get_facts(
+        self,
+        project_id: int,
+        version_id: int,
+        language: str = "ru",
+    ) -> FactListResponse:
+        params: dict[str, Any] = {"language": language}
+        resp = await self._request(
+            "GET",
+            f"{self._rmd_prefix(project_id, version_id)}/facts",
+            params=params,
+        )
+        return FactListResponse.model_validate(resp.json())
 
     async def get_rmd(
         self,
@@ -146,7 +180,270 @@ class DataForgeClient:
         params: dict[str, Any] = {"language": language}
         resp = await self._request(
             "GET",
-            f"/rmd-api/v1/projects/{project_id}/versions/{version_id}/rmd",
+            f"{self._rmd_prefix(project_id, version_id)}/rmd",
             params=params,
         )
         return RmdResponse.model_validate(resp.json())
+
+    # -----------------------------------------------------------------------
+    # DF API  (/df-api/v1/)
+    # -----------------------------------------------------------------------
+
+    def _df_prefix(self, project_id: int, version_id: int) -> str:
+        return f"/df-api/v1/projects/{project_id}/versions/{version_id}"
+
+    async def get_data_marts(
+        self,
+        project_id: int,
+        version_id: int,
+        language: str = "ru",
+        page: int = 1,
+        page_size: int = 100,
+        type: str | None = None,
+        merge_type: str | None = None,
+        search: str | None = None,
+    ) -> DataMartListResponse:
+        params: dict[str, Any] = {
+            "language": language,
+            "page": page,
+            "pageSize": page_size,
+        }
+        if type is not None:
+            params["type"] = type
+        if merge_type is not None:
+            params["mergeType"] = merge_type
+        if search is not None:
+            params["search"] = search
+        resp = await self._request(
+            "GET", f"{self._df_prefix(project_id, version_id)}/data-marts", params=params
+        )
+        return DataMartListResponse.model_validate(resp.json())
+
+    async def get_data_mart(
+        self,
+        project_id: int,
+        version_id: int,
+        data_mart_id: int,
+        language: str = "ru",
+    ) -> DataMartDetail:
+        params: dict[str, Any] = {"language": language}
+        resp = await self._request(
+            "GET",
+            f"{self._df_prefix(project_id, version_id)}/data-marts/{data_mart_id}",
+            params=params,
+        )
+        return DataMartDetail.model_validate(resp.json())
+
+    async def get_data_mart_view(
+        self,
+        project_id: int,
+        version_id: int,
+        data_mart_id: int,
+    ) -> PhysicalViewResponse:
+        resp = await self._request(
+            "GET",
+            f"{self._df_prefix(project_id, version_id)}/data-marts/{data_mart_id}/view",
+        )
+        return PhysicalViewResponse.model_validate(resp.json())
+
+    async def generate_sql(
+        self,
+        project_id: int,
+        version_id: int,
+        data_mart_id: int,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> SqlGenerationResponse:
+        params: dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
+        resp = await self._request(
+            "POST",
+            f"{self._df_prefix(project_id, version_id)}/data-marts/{data_mart_id}/generate-sql",
+            params=params,
+        )
+        return SqlGenerationResponse.model_validate(resp.json())
+
+    async def get_connections(
+        self,
+        project_id: int,
+        version_id: int,
+        language: str = "ru",
+        page: int = 1,
+        page_size: int = 100,
+        db_type: str | None = None,
+        status: str | None = None,
+    ) -> ConnectionListResponse:
+        params: dict[str, Any] = {
+            "language": language,
+            "page": page,
+            "pageSize": page_size,
+        }
+        if db_type is not None:
+            params["dbType"] = db_type
+        if status is not None:
+            params["status"] = status
+        resp = await self._request(
+            "GET", f"{self._df_prefix(project_id, version_id)}/connections", params=params
+        )
+        return ConnectionListResponse.model_validate(resp.json())
+
+    async def get_connection(
+        self,
+        project_id: int,
+        version_id: int,
+        connection_id: int,
+        language: str = "ru",
+        include_db_schema: bool = False,
+    ) -> ConnectionDetail:
+        params: dict[str, Any] = {"language": language}
+        if include_db_schema:
+            params["includeDbSchema"] = "true"
+        resp = await self._request(
+            "GET",
+            f"{self._df_prefix(project_id, version_id)}/connections/{connection_id}",
+            params=params,
+        )
+        return ConnectionDetail.model_validate(resp.json())
+
+    async def get_connection_schema(
+        self,
+        project_id: int,
+        version_id: int,
+        connection_id: int,
+    ) -> ConnectionSchemaResponse:
+        resp = await self._request(
+            "GET",
+            f"{self._df_prefix(project_id, version_id)}/connections/{connection_id}/schema",
+        )
+        return ConnectionSchemaResponse.model_validate(resp.json())
+
+    async def get_dimension_groups(
+        self,
+        project_id: int,
+        version_id: int,
+        language: str = "ru",
+        page: int = 1,
+        page_size: int = 100,
+    ) -> DimensionGroupListResponse:
+        params: dict[str, Any] = {
+            "language": language,
+            "page": page,
+            "pageSize": page_size,
+        }
+        resp = await self._request(
+            "GET",
+            f"{self._df_prefix(project_id, version_id)}/dimension-groups",
+            params=params,
+        )
+        return DimensionGroupListResponse.model_validate(resp.json())
+
+    async def get_dimension_group(
+        self,
+        project_id: int,
+        version_id: int,
+        dimension_group_id: int,
+        language: str = "ru",
+    ) -> DimensionGroupDetail:
+        params: dict[str, Any] = {"language": language}
+        resp = await self._request(
+            "GET",
+            f"{self._df_prefix(project_id, version_id)}/dimension-groups/{dimension_group_id}",
+            params=params,
+        )
+        return DimensionGroupDetail.model_validate(resp.json())
+
+    async def get_fact_tables(
+        self,
+        project_id: int,
+        version_id: int,
+        language: str = "ru",
+        page: int = 1,
+        page_size: int = 100,
+    ) -> FactTableListResponse:
+        params: dict[str, Any] = {
+            "language": language,
+            "page": page,
+            "pageSize": page_size,
+        }
+        resp = await self._request(
+            "GET",
+            f"{self._df_prefix(project_id, version_id)}/fact-tables",
+            params=params,
+        )
+        return FactTableListResponse.model_validate(resp.json())
+
+    async def get_fact_table(
+        self,
+        project_id: int,
+        version_id: int,
+        fact_table_id: int,
+        language: str = "ru",
+        include_dependencies: bool = False,
+    ) -> FactTableDetail:
+        params: dict[str, Any] = {"language": language}
+        if include_dependencies:
+            params["includeDependencies"] = "true"
+        resp = await self._request(
+            "GET",
+            f"{self._df_prefix(project_id, version_id)}/fact-tables/{fact_table_id}",
+            params=params,
+        )
+        return FactTableDetail.model_validate(resp.json())
+
+    async def get_relationships(
+        self,
+        project_id: int,
+        version_id: int,
+        language: str = "ru",
+        page: int = 1,
+        page_size: int = 100,
+        fact_table_id: int | None = None,
+        dimension_group_id: int | None = None,
+    ) -> RelationshipListResponse:
+        params: dict[str, Any] = {
+            "language": language,
+            "page": page,
+            "pageSize": page_size,
+        }
+        if fact_table_id is not None:
+            params["factTableId"] = fact_table_id
+        if dimension_group_id is not None:
+            params["dimensionGroupId"] = dimension_group_id
+        resp = await self._request(
+            "GET",
+            f"{self._df_prefix(project_id, version_id)}/relationships",
+            params=params,
+        )
+        return RelationshipListResponse.model_validate(resp.json())
+
+    async def get_relationship(
+        self,
+        project_id: int,
+        version_id: int,
+        relationship_id: int,
+        language: str = "ru",
+    ) -> RelationshipDetail:
+        params: dict[str, Any] = {"language": language}
+        resp = await self._request(
+            "GET",
+            f"{self._df_prefix(project_id, version_id)}/relationships/{relationship_id}",
+            params=params,
+        )
+        return RelationshipDetail.model_validate(resp.json())
+
+    async def get_consolidated_rmd(
+        self,
+        project_id: int,
+        version_id: int,
+        language: str = "ru",
+    ) -> ConsolidatedRmdResponse:
+        params: dict[str, Any] = {"language": language}
+        resp = await self._request(
+            "GET",
+            f"{self._df_prefix(project_id, version_id)}/rmd",
+            params=params,
+        )
+        return ConsolidatedRmdResponse.model_validate(resp.json())

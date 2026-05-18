@@ -80,12 +80,38 @@ DIMENSIONS_RESPONSE = {
     "pagination": {"total": 1, "page": 1, "pageSize": 100, "totalPages": 1},
 }
 
+FACTS_RESPONSE = {
+    "facts": [
+        {
+            "row_number": "1",
+            "group": "Sales",
+            "block": "Orders",
+            "fact_name": "Order Amount",
+            "fact_description": "Total order amount",
+            "original_source_type": "Database",
+            "original_source": "Sales DB",
+            "original_object": "orders_table",
+            "source_data_type": "Decimal",
+            "fact_type": "Additive",
+            "formula": "[Amount]",
+            "connected_source": {"database": "Sales DB", "table": "orders"},
+            "status": "Active",
+            "relevance": "High",
+            "required": True,
+            "visibility": "Public",
+        }
+    ],
+    "pagination": {"total": 1, "page": 1, "pageSize": 100, "totalPages": 1},
+}
+
 RMD_RESPONSE = {
     "measures": MEASURES_RESPONSE["measures"],
     "dimensions": DIMENSIONS_RESPONSE["dimensions"],
+    "facts": FACTS_RESPONSE["facts"],
     "pagination": {
         "measures": {"total": 1, "page": 1, "pageSize": 100, "totalPages": 1},
         "dimensions": {"total": 1, "page": 1, "pageSize": 50, "totalPages": 1},
+        "facts": {"total": 1, "page": 1, "pageSize": 100, "totalPages": 1},
     },
 }
 
@@ -167,6 +193,20 @@ async def test_get_dimensions_success(client: DataForgeClient) -> None:
 
 @respx.mock
 @pytest.mark.asyncio
+async def test_get_facts_success(client: DataForgeClient) -> None:
+    respx.get(f"{BASE}/rmd-api/v1/projects/392/versions/948/facts").mock(
+        return_value=httpx.Response(200, json=FACTS_RESPONSE)
+    )
+    async with client:
+        result = await client.get_facts(392, 948)
+    assert len(result.facts) == 1
+    assert result.facts[0].fact_name == "Order Amount"
+    assert result.facts[0].fact_type == "Additive"
+    assert result.facts[0].connected_source.database == "Sales DB"
+
+
+@respx.mock
+@pytest.mark.asyncio
 async def test_get_rmd_success(client: DataForgeClient) -> None:
     respx.get(f"{BASE}/rmd-api/v1/projects/392/versions/948/rmd").mock(
         return_value=httpx.Response(200, json=RMD_RESPONSE)
@@ -175,8 +215,31 @@ async def test_get_rmd_success(client: DataForgeClient) -> None:
         result = await client.get_rmd(392, 948)
     assert len(result.measures) == 1
     assert len(result.dimensions) == 1
+    assert len(result.facts) == 1
     assert result.pagination.measures.total == 1
     assert result.pagination.dimensions.total == 1
+    assert result.pagination.facts.total == 1
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_rmd_without_facts(client: DataForgeClient) -> None:
+    """RMD response without facts array should still parse (backward compat)."""
+    rmd_no_facts = {
+        "measures": MEASURES_RESPONSE["measures"],
+        "dimensions": DIMENSIONS_RESPONSE["dimensions"],
+        "pagination": {
+            "measures": {"total": 1, "page": 1, "pageSize": 100, "totalPages": 1},
+            "dimensions": {"total": 1, "page": 1, "pageSize": 50, "totalPages": 1},
+        },
+    }
+    respx.get(f"{BASE}/rmd-api/v1/projects/392/versions/948/rmd").mock(
+        return_value=httpx.Response(200, json=rmd_no_facts)
+    )
+    async with client:
+        result = await client.get_rmd(392, 948)
+    assert len(result.measures) == 1
+    assert len(result.facts) == 0
 
 
 @respx.mock
@@ -229,6 +292,56 @@ async def test_401_auth_failed(client: DataForgeClient) -> None:
 
 @respx.mock
 @pytest.mark.asyncio
+async def test_403_account_locked(client: DataForgeClient) -> None:
+    respx.get(f"{BASE}/rmd-api/v1/projects").mock(
+        return_value=httpx.Response(403, text='{"error": "API_KEY.ACCOUNT_LOCKED"}')
+    )
+    async with client:
+        with pytest.raises(DataForgeError) as exc_info:
+            await client.get_projects()
+    assert exc_info.value.code == ErrorCode.DATAFORGE_ACCOUNT_LOCKED
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_403_ip_blocked(client: DataForgeClient) -> None:
+    respx.get(f"{BASE}/rmd-api/v1/projects").mock(
+        return_value=httpx.Response(403, text='{"error": "API_KEY.IP_BLOCKED"}')
+    )
+    async with client:
+        with pytest.raises(DataForgeError) as exc_info:
+            await client.get_projects()
+    assert exc_info.value.code == ErrorCode.DATAFORGE_IP_BLOCKED
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_403_license_invalid(client: DataForgeClient) -> None:
+    respx.get(f"{BASE}/rmd-api/v1/projects").mock(
+        return_value=httpx.Response(
+            403, text='{"error": "API.NOT_AVAILABLE_WITHOUT_VALID_LICENSE"}'
+        )
+    )
+    async with client:
+        with pytest.raises(DataForgeError) as exc_info:
+            await client.get_projects()
+    assert exc_info.value.code == ErrorCode.DATAFORGE_LICENSE_INVALID
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_400_invalid_parameter(client: DataForgeClient) -> None:
+    respx.get(f"{BASE}/df-api/v1/projects/392/versions/948/data-marts").mock(
+        return_value=httpx.Response(400, text='{"error": "DF_API.INVALID_PARAMETER"}')
+    )
+    async with client:
+        with pytest.raises(DataForgeError) as exc_info:
+            await client.get_data_marts(392, 948)
+    assert exc_info.value.code == ErrorCode.DATAFORGE_INVALID_PARAMETER
+
+
+@respx.mock
+@pytest.mark.asyncio
 async def test_404_not_found(client: DataForgeClient) -> None:
     respx.get(f"{BASE}/rmd-api/v1/projects/999/versions").mock(
         return_value=httpx.Response(404, text="Not Found")
@@ -242,9 +355,7 @@ async def test_404_not_found(client: DataForgeClient) -> None:
 @respx.mock
 @pytest.mark.asyncio
 async def test_timeout(client: DataForgeClient) -> None:
-    respx.get(f"{BASE}/rmd-api/v1/projects").mock(
-        side_effect=httpx.ReadTimeout("read timed out")
-    )
+    respx.get(f"{BASE}/rmd-api/v1/projects").mock(side_effect=httpx.ReadTimeout("read timed out"))
     async with client:
         with pytest.raises(DataForgeError) as exc_info:
             await client.get_projects()
@@ -287,3 +398,153 @@ async def test_pagination_camelcase(client: DataForgeClient) -> None:
         result = await client.get_projects()
     assert result.pagination.page_size == 100
     assert result.pagination.total_pages == 1
+
+
+# ---------------------------------------------------------------------------
+# DF API client tests
+# ---------------------------------------------------------------------------
+
+DATA_MARTS_RESPONSE = {
+    "dataMarts": [{"id": 1, "name": "Sales Mart", "type": "standard", "merge_type": "union"}],
+    "pagination": {"total": 1, "page": 1, "pageSize": 100, "totalPages": 1},
+}
+
+DATA_MART_DETAIL = {
+    "id": 1,
+    "name": "Sales Mart",
+    "type": "standard",
+    "measures": [{"id": 10, "name": "Revenue"}],
+    "dimensions": [{"id": 20, "name": "Date"}],
+    "facts": [],
+    "sourceFactTables": [{"id": 30, "name": "orders"}],
+}
+
+CONNECTIONS_RESPONSE = {
+    "connections": [{"id": 1, "name": "Main DB", "dbType": "postgresql", "status": "active"}],
+    "pagination": {"total": 1, "page": 1, "pageSize": 100, "totalPages": 1},
+}
+
+DIMENSION_GROUPS_RESPONSE = {
+    "dimensionGroups": [{"id": 1, "name": "Date Group", "primaryKey": "date_id"}],
+    "pagination": {"total": 1, "page": 1, "pageSize": 100, "totalPages": 1},
+}
+
+FACT_TABLES_RESPONSE = {
+    "factTables": [{"id": 1, "name": "orders"}],
+    "pagination": {"total": 1, "page": 1, "pageSize": 100, "totalPages": 1},
+}
+
+RELATIONSHIPS_RESPONSE = {
+    "relationships": [{"id": 1, "factTableId": 1, "dimensionGroupId": 1}],
+    "pagination": {"total": 1, "page": 1, "pageSize": 100, "totalPages": 1},
+}
+
+CONSOLIDATED_RMD_RESPONSE = {
+    "project": {"id": 392, "name": "Fashion"},
+    "version": {"id": 948, "name": "v1"},
+    "measures": [],
+    "dimensions": [],
+    "facts": [],
+    "dimensionGroups": [],
+    "factTables": [],
+    "relationships": [],
+    "exportedAt": "2026-05-18T12:00:00Z",
+}
+
+SQL_RESPONSE = {"sql": "SELECT * FROM orders LIMIT 100"}
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_data_marts(client: DataForgeClient) -> None:
+    respx.get(f"{BASE}/df-api/v1/projects/392/versions/948/data-marts").mock(
+        return_value=httpx.Response(200, json=DATA_MARTS_RESPONSE)
+    )
+    async with client:
+        result = await client.get_data_marts(392, 948)
+    assert len(result.data_marts) == 1
+    assert result.data_marts[0].name == "Sales Mart"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_data_mart_detail(client: DataForgeClient) -> None:
+    respx.get(f"{BASE}/df-api/v1/projects/392/versions/948/data-marts/1").mock(
+        return_value=httpx.Response(200, json=DATA_MART_DETAIL)
+    )
+    async with client:
+        result = await client.get_data_mart(392, 948, 1)
+    assert result.id == 1
+    assert len(result.measures) == 1
+    assert len(result.source_fact_tables) == 1
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_generate_sql(client: DataForgeClient) -> None:
+    respx.post(f"{BASE}/df-api/v1/projects/392/versions/948/data-marts/1/generate-sql").mock(
+        return_value=httpx.Response(200, json=SQL_RESPONSE)
+    )
+    async with client:
+        result = await client.generate_sql(392, 948, 1)
+    assert result.sql == "SELECT * FROM orders LIMIT 100"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_connections(client: DataForgeClient) -> None:
+    respx.get(f"{BASE}/df-api/v1/projects/392/versions/948/connections").mock(
+        return_value=httpx.Response(200, json=CONNECTIONS_RESPONSE)
+    )
+    async with client:
+        result = await client.get_connections(392, 948)
+    assert len(result.connections) == 1
+    assert result.connections[0].db_type == "postgresql"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_dimension_groups(client: DataForgeClient) -> None:
+    respx.get(f"{BASE}/df-api/v1/projects/392/versions/948/dimension-groups").mock(
+        return_value=httpx.Response(200, json=DIMENSION_GROUPS_RESPONSE)
+    )
+    async with client:
+        result = await client.get_dimension_groups(392, 948)
+    assert len(result.dimension_groups) == 1
+    assert result.dimension_groups[0].primary_key == "date_id"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_fact_tables(client: DataForgeClient) -> None:
+    respx.get(f"{BASE}/df-api/v1/projects/392/versions/948/fact-tables").mock(
+        return_value=httpx.Response(200, json=FACT_TABLES_RESPONSE)
+    )
+    async with client:
+        result = await client.get_fact_tables(392, 948)
+    assert len(result.fact_tables) == 1
+    assert result.fact_tables[0].name == "orders"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_relationships(client: DataForgeClient) -> None:
+    respx.get(f"{BASE}/df-api/v1/projects/392/versions/948/relationships").mock(
+        return_value=httpx.Response(200, json=RELATIONSHIPS_RESPONSE)
+    )
+    async with client:
+        result = await client.get_relationships(392, 948)
+    assert len(result.relationships) == 1
+    assert result.relationships[0].fact_table_id == 1
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_consolidated_rmd(client: DataForgeClient) -> None:
+    respx.get(f"{BASE}/df-api/v1/projects/392/versions/948/rmd").mock(
+        return_value=httpx.Response(200, json=CONSOLIDATED_RMD_RESPONSE)
+    )
+    async with client:
+        result = await client.get_consolidated_rmd(392, 948)
+    assert result.project["id"] == 392
+    assert result.exported_at == "2026-05-18T12:00:00Z"

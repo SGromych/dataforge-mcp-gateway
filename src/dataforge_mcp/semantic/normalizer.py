@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
-from dataforge_mcp.dataforge.schemas import ConnectedSourceRaw, DimensionRaw, MeasureRaw
+from dataforge_mcp.dataforge.schemas import (
+    ConnectedSourceRaw,
+    DimensionRaw,
+    FactRaw,
+    MeasureRaw,
+)
 
 from .models import (
     CanonicalConnectedSource,
     CanonicalDimension,
+    CanonicalFact,
     CanonicalMeasure,
     CanonicalProject,
     CanonicalSemanticContext,
@@ -85,6 +91,31 @@ def normalize_dimension(raw: DimensionRaw) -> CanonicalDimension:
     )
 
 
+def normalize_fact(raw: FactRaw) -> CanonicalFact:
+    return CanonicalFact(
+        row_number=raw.row_number,
+        group=raw.group,
+        block=raw.block,
+        name=raw.fact_name,
+        description=raw.fact_description,
+        original_source_type=raw.original_source_type,
+        original_source=raw.original_source,
+        original_object=raw.original_object,
+        source_data_type=raw.source_data_type,
+        fact_type=raw.fact_type,
+        formula=raw.formula,
+        connected_source=normalize_connected_source(raw.connected_source),
+        report_for_verification=raw.report_for_verification,
+        comment=raw.comment,
+        status=raw.status,
+        relevance=raw.relevance,
+        required=raw.required,
+        visibility=raw.visibility,
+        responsible_for_data=raw.responsible_for_data,
+        raw=raw.model_dump(),
+    )
+
+
 def normalize_measures(raw_list: list[MeasureRaw]) -> list[CanonicalMeasure]:
     return [normalize_measure(m) for m in raw_list]
 
@@ -93,19 +124,27 @@ def normalize_dimensions(raw_list: list[DimensionRaw]) -> list[CanonicalDimensio
     return [normalize_dimension(d) for d in raw_list]
 
 
+def normalize_facts(raw_list: list[FactRaw]) -> list[CanonicalFact]:
+    return [normalize_fact(f) for f in raw_list]
+
+
 def build_semantic_context(
     project: CanonicalProject,
     version: CanonicalVersion,
     measures: list[CanonicalMeasure],
     dimensions: list[CanonicalDimension],
+    facts: list[CanonicalFact] | None = None,
 ) -> CanonicalSemanticContext:
+    facts = facts or []
     return CanonicalSemanticContext(
         project=project,
         version=version,
         measures=measures,
         dimensions=dimensions,
+        facts=facts,
         stats=SemanticStats(
             measure_count=len(measures),
             dimension_count=len(dimensions),
+            fact_count=len(facts),
         ),
     )
