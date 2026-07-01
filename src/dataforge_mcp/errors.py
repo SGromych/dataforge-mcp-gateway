@@ -16,6 +16,7 @@ class ErrorCode(StrEnum):
     DATAFORGE_PAGE_SIZE_EXCEEDED = "DATAFORGE_PAGE_SIZE_EXCEEDED"
     DATAFORGE_RESOURCE_NOT_FOUND = "DATAFORGE_RESOURCE_NOT_FOUND"
     DATAFORGE_TIMEOUT = "DATAFORGE_TIMEOUT"
+    DATAFORGE_RATE_LIMIT_EXCEEDED = "DATAFORGE_RATE_LIMIT_EXCEEDED"
     DATAFORGE_SERVER_ERROR = "DATAFORGE_SERVER_ERROR"
     DATAFORGE_CONNECTION_ERROR = "DATAFORGE_CONNECTION_ERROR"
     CACHE_READ_ERROR = "CACHE_READ_ERROR"
@@ -69,6 +70,13 @@ def map_http_error(status_code: int, response_body: str) -> DataForgeError:
         return DataForgeError(
             code=ErrorCode.DATAFORGE_RESOURCE_NOT_FOUND,
             message="Resource not found",
+            details=details,
+        )
+
+    if status_code == 429:
+        return DataForgeError(
+            code=ErrorCode.DATAFORGE_RATE_LIMIT_EXCEEDED,
+            message="Rate limit exceeded (5 req/60s per key)",
             details=details,
         )
 

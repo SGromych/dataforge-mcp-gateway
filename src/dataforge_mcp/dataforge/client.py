@@ -75,6 +75,8 @@ class DataForgeClient:
         for attempt in range(self._max_retries):
             try:
                 response = await self.client.request(method, path, **kwargs)
+                if response.status_code == 429:
+                    raise map_http_error(response.status_code, response.text)
                 if response.status_code >= 500:
                     last_exc = map_http_error(response.status_code, response.text)
                     if attempt < self._max_retries - 1:
@@ -109,15 +111,15 @@ class DataForgeClient:
         raise last_exc  # type: ignore[misc]
 
     # -----------------------------------------------------------------------
-    # RMD API  (/rmd-api/v1/)
+    # DF API v2  (/df-api/v2/)
     # -----------------------------------------------------------------------
 
-    def _rmd_prefix(self, project_id: int, version_id: int) -> str:
-        return f"/rmd-api/v1/projects/{project_id}/versions/{version_id}"
+    def _v2_prefix(self, project_id: int, version_id: int) -> str:
+        return f"/df-api/v2/projects/{project_id}/versions/{version_id}"
 
     async def get_projects(self, page: int = 1, page_size: int = 100) -> ProjectListResponse:
         params: dict[str, Any] = {"page": page, "pageSize": page_size}
-        resp = await self._request("GET", "/rmd-api/v1/projects", params=params)
+        resp = await self._request("GET", "/df-api/v2/projects", params=params)
         return ProjectListResponse.model_validate(resp.json())
 
     async def get_versions(
@@ -125,7 +127,7 @@ class DataForgeClient:
     ) -> VersionListResponse:
         params: dict[str, Any] = {"page": page, "pageSize": page_size}
         resp = await self._request(
-            "GET", f"/rmd-api/v1/projects/{project_id}/versions", params=params
+            "GET", f"/df-api/v2/projects/{project_id}/versions", params=params
         )
         return VersionListResponse.model_validate(resp.json())
 
@@ -134,11 +136,14 @@ class DataForgeClient:
         project_id: int,
         version_id: int,
         language: str = "ru",
+        include_sql: bool = False,
     ) -> MeasureListResponse:
         params: dict[str, Any] = {"language": language}
+        if include_sql:
+            params["include_sql"] = "true"
         resp = await self._request(
             "GET",
-            f"{self._rmd_prefix(project_id, version_id)}/measures",
+            f"{self._v2_prefix(project_id, version_id)}/measures",
             params=params,
         )
         return MeasureListResponse.model_validate(resp.json())
@@ -152,7 +157,7 @@ class DataForgeClient:
         params: dict[str, Any] = {"language": language}
         resp = await self._request(
             "GET",
-            f"{self._rmd_prefix(project_id, version_id)}/dimensions",
+            f"{self._v2_prefix(project_id, version_id)}/dimensions",
             params=params,
         )
         return DimensionListResponse.model_validate(resp.json())
@@ -166,7 +171,7 @@ class DataForgeClient:
         params: dict[str, Any] = {"language": language}
         resp = await self._request(
             "GET",
-            f"{self._rmd_prefix(project_id, version_id)}/facts",
+            f"{self._v2_prefix(project_id, version_id)}/facts",
             params=params,
         )
         return FactListResponse.model_validate(resp.json())
@@ -180,17 +185,10 @@ class DataForgeClient:
         params: dict[str, Any] = {"language": language}
         resp = await self._request(
             "GET",
-            f"{self._rmd_prefix(project_id, version_id)}/rmd",
+            f"{self._v2_prefix(project_id, version_id)}/rmd",
             params=params,
         )
         return RmdResponse.model_validate(resp.json())
-
-    # -----------------------------------------------------------------------
-    # DF API  (/df-api/v1/)
-    # -----------------------------------------------------------------------
-
-    def _df_prefix(self, project_id: int, version_id: int) -> str:
-        return f"/df-api/v1/projects/{project_id}/versions/{version_id}"
 
     async def get_data_marts(
         self,
@@ -215,7 +213,7 @@ class DataForgeClient:
         if search is not None:
             params["search"] = search
         resp = await self._request(
-            "GET", f"{self._df_prefix(project_id, version_id)}/data-marts", params=params
+            "GET", f"{self._v2_prefix(project_id, version_id)}/data-marts", params=params
         )
         return DataMartListResponse.model_validate(resp.json())
 
@@ -229,7 +227,7 @@ class DataForgeClient:
         params: dict[str, Any] = {"language": language}
         resp = await self._request(
             "GET",
-            f"{self._df_prefix(project_id, version_id)}/data-marts/{data_mart_id}",
+            f"{self._v2_prefix(project_id, version_id)}/data-marts/{data_mart_id}",
             params=params,
         )
         return DataMartDetail.model_validate(resp.json())
@@ -242,7 +240,7 @@ class DataForgeClient:
     ) -> PhysicalViewResponse:
         resp = await self._request(
             "GET",
-            f"{self._df_prefix(project_id, version_id)}/data-marts/{data_mart_id}/view",
+            f"{self._v2_prefix(project_id, version_id)}/data-marts/{data_mart_id}/view",
         )
         return PhysicalViewResponse.model_validate(resp.json())
 
@@ -261,7 +259,7 @@ class DataForgeClient:
             params["offset"] = offset
         resp = await self._request(
             "POST",
-            f"{self._df_prefix(project_id, version_id)}/data-marts/{data_mart_id}/generate-sql",
+            f"{self._v2_prefix(project_id, version_id)}/data-marts/{data_mart_id}/generate-sql",
             params=params,
         )
         return SqlGenerationResponse.model_validate(resp.json())
@@ -286,7 +284,7 @@ class DataForgeClient:
         if status is not None:
             params["status"] = status
         resp = await self._request(
-            "GET", f"{self._df_prefix(project_id, version_id)}/connections", params=params
+            "GET", f"{self._v2_prefix(project_id, version_id)}/connections", params=params
         )
         return ConnectionListResponse.model_validate(resp.json())
 
@@ -303,7 +301,7 @@ class DataForgeClient:
             params["includeDbSchema"] = "true"
         resp = await self._request(
             "GET",
-            f"{self._df_prefix(project_id, version_id)}/connections/{connection_id}",
+            f"{self._v2_prefix(project_id, version_id)}/connections/{connection_id}",
             params=params,
         )
         return ConnectionDetail.model_validate(resp.json())
@@ -316,7 +314,7 @@ class DataForgeClient:
     ) -> ConnectionSchemaResponse:
         resp = await self._request(
             "GET",
-            f"{self._df_prefix(project_id, version_id)}/connections/{connection_id}/schema",
+            f"{self._v2_prefix(project_id, version_id)}/connections/{connection_id}/schema",
         )
         return ConnectionSchemaResponse.model_validate(resp.json())
 
@@ -335,7 +333,7 @@ class DataForgeClient:
         }
         resp = await self._request(
             "GET",
-            f"{self._df_prefix(project_id, version_id)}/dimension-groups",
+            f"{self._v2_prefix(project_id, version_id)}/dimension-groups",
             params=params,
         )
         return DimensionGroupListResponse.model_validate(resp.json())
@@ -350,7 +348,7 @@ class DataForgeClient:
         params: dict[str, Any] = {"language": language}
         resp = await self._request(
             "GET",
-            f"{self._df_prefix(project_id, version_id)}/dimension-groups/{dimension_group_id}",
+            f"{self._v2_prefix(project_id, version_id)}/dimension-groups/{dimension_group_id}",
             params=params,
         )
         return DimensionGroupDetail.model_validate(resp.json())
@@ -370,7 +368,7 @@ class DataForgeClient:
         }
         resp = await self._request(
             "GET",
-            f"{self._df_prefix(project_id, version_id)}/fact-tables",
+            f"{self._v2_prefix(project_id, version_id)}/fact-tables",
             params=params,
         )
         return FactTableListResponse.model_validate(resp.json())
@@ -388,7 +386,7 @@ class DataForgeClient:
             params["includeDependencies"] = "true"
         resp = await self._request(
             "GET",
-            f"{self._df_prefix(project_id, version_id)}/fact-tables/{fact_table_id}",
+            f"{self._v2_prefix(project_id, version_id)}/fact-tables/{fact_table_id}",
             params=params,
         )
         return FactTableDetail.model_validate(resp.json())
@@ -414,7 +412,7 @@ class DataForgeClient:
             params["dimensionGroupId"] = dimension_group_id
         resp = await self._request(
             "GET",
-            f"{self._df_prefix(project_id, version_id)}/relationships",
+            f"{self._v2_prefix(project_id, version_id)}/relationships",
             params=params,
         )
         return RelationshipListResponse.model_validate(resp.json())
@@ -429,7 +427,7 @@ class DataForgeClient:
         params: dict[str, Any] = {"language": language}
         resp = await self._request(
             "GET",
-            f"{self._df_prefix(project_id, version_id)}/relationships/{relationship_id}",
+            f"{self._v2_prefix(project_id, version_id)}/relationships/{relationship_id}",
             params=params,
         )
         return RelationshipDetail.model_validate(resp.json())
@@ -439,11 +437,14 @@ class DataForgeClient:
         project_id: int,
         version_id: int,
         language: str = "ru",
+        include_sql: bool = False,
     ) -> ConsolidatedRmdResponse:
         params: dict[str, Any] = {"language": language}
+        if include_sql:
+            params["include_sql"] = "true"
         resp = await self._request(
             "GET",
-            f"{self._df_prefix(project_id, version_id)}/rmd",
+            f"{self._v2_prefix(project_id, version_id)}/rmd",
             params=params,
         )
         return ConsolidatedRmdResponse.model_validate(resp.json())

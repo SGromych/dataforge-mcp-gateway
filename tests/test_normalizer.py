@@ -5,6 +5,8 @@ from dataforge_mcp.dataforge.schemas import (
     DimensionRaw,
     FactRaw,
     MeasureRaw,
+    MeasureSqlCode,
+    SqlScript,
 )
 from dataforge_mcp.semantic.models import CanonicalProject, CanonicalVersion
 from dataforge_mcp.semantic.normalizer import (
@@ -181,6 +183,33 @@ def test_batch_normalize() -> None:
     )
     assert len(dimensions) == 2
     assert dimensions[1].name == "Y"
+
+
+def test_measure_with_sql_code() -> None:
+    raw = MeasureRaw(
+        measure_name="Revenue",
+        sql_code=MeasureSqlCode(
+            generated_at="2026-06-01T10:00:00Z",
+            sql_scripts=[
+                SqlScript(
+                    fact_table_id="1",
+                    fact_table_name="orders",
+                    sql="SELECT SUM(amount) FROM orders",
+                )
+            ],
+        ),
+    )
+    result = normalize_measure(raw)
+    assert result.sql_code is not None
+    assert result.sql_code["generated_at"] == "2026-06-01T10:00:00Z"
+    assert len(result.sql_code["sql_scripts"]) == 1
+    assert result.sql_code["sql_scripts"][0]["sql"] == "SELECT SUM(amount) FROM orders"
+
+
+def test_measure_without_sql_code() -> None:
+    raw = MeasureRaw(measure_name="Revenue")
+    result = normalize_measure(raw)
+    assert result.sql_code is None
 
 
 def test_batch_normalize_facts() -> None:

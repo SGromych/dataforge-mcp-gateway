@@ -45,8 +45,10 @@ def versions_key(project_id: int, page: int = 1, page_size: int = 100) -> str:
     return f"versions:{project_id}:{page}:{page_size}"
 
 
-def measures_key(project_id: int, version_id: int, language: str) -> str:
-    return f"measures:{project_id}:{version_id}:{language}"
+def measures_key(
+    project_id: int, version_id: int, language: str, include_sql: bool = False
+) -> str:
+    return f"measures:{project_id}:{version_id}:{language}:{include_sql}"
 
 
 def dimensions_key(project_id: int, version_id: int, language: str) -> str:
@@ -117,8 +119,14 @@ def fact_tables_key(
     return f"fact_tables:{project_id}:{version_id}:{language}:{page}:{page_size}"
 
 
-def fact_table_key(project_id: int, version_id: int, fact_table_id: int, language: str) -> str:
-    return f"fact_table:{project_id}:{version_id}:{fact_table_id}:{language}"
+def fact_table_key(
+    project_id: int,
+    version_id: int,
+    fact_table_id: int,
+    language: str,
+    include_dependencies: bool = False,
+) -> str:
+    return f"fact_table:{project_id}:{version_id}:{fact_table_id}:{language}:{include_dependencies}"
 
 
 def relationships_key(
@@ -137,5 +145,7 @@ def relationship_key(project_id: int, version_id: int, relationship_id: int, lan
     return f"relationship:{project_id}:{version_id}:{relationship_id}:{language}"
 
 
-def consolidated_rmd_key(project_id: int, version_id: int, language: str) -> str:
-    return f"consolidated_rmd:{project_id}:{version_id}:{language}"
+def consolidated_rmd_key(
+    project_id: int, version_id: int, language: str, include_sql: bool = False
+) -> str:
+    return f"consolidated_rmd:{project_id}:{version_id}:{language}:{include_sql}"

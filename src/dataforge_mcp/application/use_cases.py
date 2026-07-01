@@ -138,24 +138,25 @@ class SemanticService:
         project_id: int,
         version_id: int,
         language: str | None = None,
+        include_sql: bool = False,
         use_cache: bool = True,
     ) -> dict[str, Any]:
         lang = language or self.settings.default_language
-        key = measures_key(project_id, version_id, lang)
+        key = measures_key(project_id, version_id, lang, include_sql)
         return await self._cached_fetch(
             key=key,
             use_cache=use_cache,
             tool_name="df_get_measures",
-            fetch=lambda: self._fetch_measures(project_id, version_id, lang),
+            fetch=lambda: self._fetch_measures(project_id, version_id, lang, include_sql),
             project_id=project_id,
             version_id=version_id,
         )
 
     async def _fetch_measures(
-        self, project_id: int, version_id: int, language: str
+        self, project_id: int, version_id: int, language: str, include_sql: bool = False
     ) -> dict[str, Any]:
         async with self._new_client() as c:
-            resp = await c.get_measures(project_id, version_id, language)
+            resp = await c.get_measures(project_id, version_id, language, include_sql)
         measures = normalize_measures(resp.measures)
         return {
             "project_id": project_id,
@@ -595,7 +596,7 @@ class SemanticService:
         use_cache: bool = True,
     ) -> dict[str, Any]:
         lang = language or self.settings.default_language
-        key = fact_table_key(project_id, version_id, fact_table_id, lang)
+        key = fact_table_key(project_id, version_id, fact_table_id, lang, include_dependencies)
         return await self._cached_fetch(
             key=key,
             use_cache=use_cache,
@@ -705,24 +706,29 @@ class SemanticService:
         project_id: int,
         version_id: int,
         language: str | None = None,
+        include_sql: bool = False,
         use_cache: bool = True,
     ) -> dict[str, Any]:
         lang = language or self.settings.default_language
-        key = consolidated_rmd_key(project_id, version_id, lang)
+        key = consolidated_rmd_key(project_id, version_id, lang, include_sql)
         return await self._cached_fetch(
             key=key,
             use_cache=use_cache,
             tool_name="df_get_consolidated_rmd",
-            fetch=lambda: self._fetch_consolidated_rmd(project_id, version_id, lang),
+            fetch=lambda: self._fetch_consolidated_rmd(project_id, version_id, lang, include_sql),
             project_id=project_id,
             version_id=version_id,
         )
 
     async def _fetch_consolidated_rmd(
-        self, project_id: int, version_id: int, language: str
+        self,
+        project_id: int,
+        version_id: int,
+        language: str,
+        include_sql: bool = False,
     ) -> dict[str, Any]:
         async with self._new_client() as c:
-            resp = await c.get_consolidated_rmd(project_id, version_id, language)
+            resp = await c.get_consolidated_rmd(project_id, version_id, language, include_sql)
         return resp.model_dump(by_alias=False)
 
     # -----------------------------------------------------------------------

@@ -36,6 +36,7 @@ def normalize_connected_source(
 
 
 def normalize_measure(raw: MeasureRaw) -> CanonicalMeasure:
+    sql_code = raw.sql_code.model_dump() if raw.sql_code else None
     return CanonicalMeasure(
         row_number=raw.row_number,
         group=raw.group,
@@ -59,6 +60,7 @@ def normalize_measure(raw: MeasureRaw) -> CanonicalMeasure:
         visibility=raw.visibility,
         responsible_for_data=raw.responsible_for_data,
         variation=raw.variation,
+        sql_code=sql_code,
         raw=raw.model_dump(),
     )
 

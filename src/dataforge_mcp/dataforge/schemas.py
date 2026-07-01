@@ -41,8 +41,24 @@ class ConnectedSourceRaw(BaseModel):
 
     database: str | None = None
     db: int | str | None = None
+    schema_: str | None = Field(alias="schema", default=None)
     table: str | None = None
     column: str | None = None
+
+
+class SqlScript(BaseModel):
+    model_config = {"extra": "allow"}
+
+    fact_table_id: str | None = None
+    fact_table_name: str | None = None
+    sql: str
+
+
+class MeasureSqlCode(BaseModel):
+    model_config = {"extra": "allow"}
+
+    generated_at: str
+    sql_scripts: list[SqlScript] = []
 
 
 class MeasureRaw(BaseModel):
@@ -70,6 +86,7 @@ class MeasureRaw(BaseModel):
     visibility: str | None = None
     responsible_for_data: str | None = None
     variation: str | None = None
+    sql_code: MeasureSqlCode | None = None
 
 
 class MeasureListResponse(BaseModel):
@@ -154,7 +171,7 @@ class RmdResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# DF API response models (/df-api/v1/)
+# DF API response models (/df-api/v2/)
 # ---------------------------------------------------------------------------
 
 
@@ -229,11 +246,16 @@ class ConnectionSchemaResponse(BaseModel):
 
 
 class DimensionGroupItem(BaseModel):
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
     id: int
     name: str | None = None
+    description: str | None = None
     primary_key: str | None = Field(alias="primaryKey", default=None)
+    related_fact_tables: list[str] | list[dict] = Field(
+        alias="relatedFactTables", default_factory=list
+    )
+    created_at: str | None = Field(alias="createdAt", default=None)
 
 
 class DimensionGroupListResponse(BaseModel):
@@ -250,16 +272,29 @@ class DimensionGroupDetail(BaseModel):
 
     id: int
     name: str | None = None
+    description: str | None = None
     primary_key: str | None = Field(alias="primaryKey", default=None)
     dimensions: list[dict] = Field(default_factory=list)
     related_fact_tables: list[dict] = Field(alias="relatedFactTables", default_factory=list)
+    created_at: str | None = Field(alias="createdAt", default=None)
+    updated_at: str | None = Field(alias="updatedAt", default=None)
 
 
 class FactTableItem(BaseModel):
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
     id: int
     name: str | None = None
+    description: str | None = None
+    owner: str | None = None
+    created_at: str | None = Field(alias="createdAt", default=None)
+    measures_count: int | None = Field(alias="measuresCount", default=None)
+    dimensions_count: int | None = Field(alias="dimensionsCount", default=None)
+    facts_count: int | None = Field(alias="factsCount", default=None)
+    verification_filters_count: int | None = Field(alias="verificationFiltersCount", default=None)
+    related_dimension_groups_count: int | None = Field(
+        alias="relatedDimensionGroupsCount", default=None
+    )
 
 
 class FactTableListResponse(BaseModel):
@@ -274,6 +309,10 @@ class FactTableDetail(BaseModel):
 
     id: int
     name: str | None = None
+    description: str | None = None
+    owner: str | None = None
+    created_at: str | None = Field(alias="createdAt", default=None)
+    updated_at: str | None = Field(alias="updatedAt", default=None)
     measures: list[dict] = Field(default_factory=list)
     dimensions: list[dict] = Field(default_factory=list)
     facts: list[dict] = Field(default_factory=list)
@@ -282,11 +321,15 @@ class FactTableDetail(BaseModel):
 
 
 class RelationshipItem(BaseModel):
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
     id: int
-    fact_table_id: int | None = Field(alias="factTableId", default=None)
-    dimension_group_id: int | None = Field(alias="dimensionGroupId", default=None)
+    source_fact_table: dict | None = Field(alias="sourceFactTable", default=None)
+    target_dimension_group: dict | None = Field(alias="targetDimensionGroup", default=None)
+    foreign_key: dict | None = Field(alias="foreignKey", default=None)
+    primary_key: dict | None = Field(alias="primaryKey", default=None)
+    relationship_type: str | None = Field(alias="relationshipType", default=None)
+    created_at: str | None = Field(alias="createdAt", default=None)
 
 
 class RelationshipListResponse(BaseModel):
@@ -300,8 +343,13 @@ class RelationshipDetail(BaseModel):
     model_config = {"extra": "allow", "populate_by_name": True}
 
     id: int
-    fact_table_id: int | None = Field(alias="factTableId", default=None)
-    dimension_group_id: int | None = Field(alias="dimensionGroupId", default=None)
+    source_fact_table: dict | None = Field(alias="sourceFactTable", default=None)
+    target_dimension_group: dict | None = Field(alias="targetDimensionGroup", default=None)
+    foreign_key: dict | None = Field(alias="foreignKey", default=None)
+    primary_key: dict | None = Field(alias="primaryKey", default=None)
+    relationship_type: str | None = Field(alias="relationshipType", default=None)
+    created_at: str | None = Field(alias="createdAt", default=None)
+    updated_at: str | None = Field(alias="updatedAt", default=None)
 
 
 class ConsolidatedRmdResponse(BaseModel):

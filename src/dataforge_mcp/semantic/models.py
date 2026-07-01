@@ -51,6 +51,7 @@ class CanonicalMeasure(BaseModel):
     visibility: str | None = None
     responsible_for_data: str | None = None
     variation: str | None = None
+    sql_code: dict[str, Any] | None = None
     raw: dict[str, Any] = Field(default_factory=dict)
 
 

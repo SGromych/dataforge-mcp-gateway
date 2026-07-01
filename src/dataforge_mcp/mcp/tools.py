@@ -53,13 +53,21 @@ def _build_tools(default_language: str) -> list[Tool]:
         ),
         Tool(
             name="df_get_measures",
-            description="Get measures (metrics) for a project version.",
+            description=(
+                "Get measures (metrics) for a project version."
+                " Set include_sql=true to get generated SQL code for each measure."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "project_id": {"type": "integer"},
                     "version_id": {"type": "integer"},
                     "language": {"type": "string", "default": default_language},
+                    "include_sql": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Include generated SQL code for each measure",
+                    },
                     "use_cache": {"type": "boolean", "default": True},
                 },
                 "required": pv_required,
@@ -305,6 +313,7 @@ def _build_tools(default_language: str) -> list[Tool]:
             description=(
                 "Get fact table details including measures, dimensions,"
                 " facts, dimension groups, and verification filters."
+                " Set include_dependencies=true to get measure dependency trees."
             ),
             inputSchema={
                 "type": "object",
@@ -367,9 +376,10 @@ def _build_tools(default_language: str) -> list[Tool]:
         Tool(
             name="df_get_consolidated_rmd",
             description=(
-                "Get consolidated RMD export via DF API: project,"
+                "Get consolidated RMD export: project,"
                 " version, measures, dimensions, facts, dimension"
                 " groups, fact tables, relationships."
+                " Set include_sql=true to include generated SQL code for measures."
             ),
             inputSchema={
                 "type": "object",
@@ -377,6 +387,11 @@ def _build_tools(default_language: str) -> list[Tool]:
                     "project_id": {"type": "integer"},
                     "version_id": {"type": "integer"},
                     "language": {"type": "string", "default": default_language},
+                    "include_sql": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Include generated SQL code for measures",
+                    },
                     "use_cache": {"type": "boolean", "default": True},
                 },
                 "required": pv_required,
@@ -426,6 +441,7 @@ async def _dispatch(name: str, args: dict[str, Any], service: SemanticService) -
                 project_id=args["project_id"],
                 version_id=args["version_id"],
                 language=args.get("language"),
+                include_sql=args.get("include_sql", False),
                 use_cache=args.get("use_cache", True),
             )
         case "df_get_dimensions":
@@ -593,6 +609,7 @@ async def _dispatch(name: str, args: dict[str, Any], service: SemanticService) -
                 project_id=args["project_id"],
                 version_id=args["version_id"],
                 language=args.get("language"),
+                include_sql=args.get("include_sql", False),
                 use_cache=args.get("use_cache", True),
             )
         case _:
