@@ -7,6 +7,8 @@ branch or ship an invalid inputSchema without anything failing.
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 
 import jsonschema
 import pytest
@@ -183,3 +185,31 @@ def test_write_tools_expose_idempotency_key() -> None:
 def test_mode_default_is_create() -> None:
     for name in ("df_write_measure", "df_write_dimension", "df_write_fact"):
         assert TOOLS_BY_NAME[name].inputSchema["properties"]["mode"]["default"] == "create"
+
+
+# ---------------------------------------------------------------------------
+# README must stay in sync with the actual tool surface
+# ---------------------------------------------------------------------------
+
+
+def _readme() -> str:
+    return (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+
+
+def _tools_listed_under(heading: str, until: str) -> set[str]:
+    body = _readme().split(heading)[1].split(until)[0]
+    return set(re.findall(r"`(df_[a-z_]+)", body))
+
+
+def test_readme_read_table_matches_read_only_tools() -> None:
+    listed = _tools_listed_under("### Read — 24 tools", "### Write")
+    assert listed == {t.name for t in TOOLS if t.annotations.readOnlyHint}
+
+
+def test_readme_write_table_matches_state_changing_tools() -> None:
+    listed = _tools_listed_under("### Write — 41 tools", "Full reference")
+    assert listed == {t.name for t in TOOLS if not t.annotations.readOnlyHint}
+
+
+def test_readme_documents_every_tool() -> None:
+    assert set(re.findall(r"`(df_[a-z_]+)", _readme())) >= set(TOOLS_BY_NAME)

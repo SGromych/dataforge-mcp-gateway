@@ -122,7 +122,7 @@ SemanticService (application/) ── cache-first reads, scope-invalidating writ
 ## Development
 
 ```bash
-pytest                            # run all tests (412)
+pytest                            # run all tests (415)
 pytest tests/test_mcp_server.py -v  # end-to-end over the MCP protocol, no network
 ruff check src/ tests/            # lint
 ruff format src/ tests/           # format
