@@ -26,10 +26,12 @@ def normalize_connected_source(
 ) -> CanonicalConnectedSource | None:
     if raw is None:
         return None
-    # Measures use "database", dimensions use "db" — unify into db
+    # v2 always sends "db"; "database" is kept as a fallback for older payloads.
     db = raw.db if raw.db is not None else raw.database
     return CanonicalConnectedSource(
+        connection=raw.connection,
         db=db,
+        schema=raw.schema_,
         table=raw.table,
         column=raw.column,
     )
@@ -38,12 +40,13 @@ def normalize_connected_source(
 def normalize_measure(raw: MeasureRaw) -> CanonicalMeasure:
     sql_code = raw.sql_code.model_dump() if raw.sql_code else None
     return CanonicalMeasure(
+        id=raw.id,
         row_number=raw.row_number,
         group=raw.group,
         block=raw.block,
         name=raw.measure_name,
         description=raw.measure_description,
-        data_type=raw.data_type,
+        data_type=raw.display_data_type or raw.data_type,
         measure_type=raw.measure_type,
         formula=raw.formula,
         restrictions=raw.restrictions,
@@ -67,13 +70,14 @@ def normalize_measure(raw: MeasureRaw) -> CanonicalMeasure:
 
 def normalize_dimension(raw: DimensionRaw) -> CanonicalDimension:
     return CanonicalDimension(
+        id=raw.id,
         row_number=raw.row_number,
         group=raw.group,
         block=raw.block,
         name=raw.dimension_name,
         description=raw.dimension_description,
         dimension_group=raw.dimension_group,
-        data_type=raw.data_type,
+        data_type=raw.display_data_type or raw.data_type,
         connected_source=normalize_connected_source(raw.connected_source),
         dimension_type=raw.dimension_type,
         original_source_type=raw.original_source_type,
@@ -95,6 +99,7 @@ def normalize_dimension(raw: DimensionRaw) -> CanonicalDimension:
 
 def normalize_fact(raw: FactRaw) -> CanonicalFact:
     return CanonicalFact(
+        id=raw.id,
         row_number=raw.row_number,
         group=raw.group,
         block=raw.block,

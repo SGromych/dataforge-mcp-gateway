@@ -1,16 +1,21 @@
 # Semantic Tools Reference
 
-Tools for accessing the semantic layer: projects, versions, measures, dimensions, facts, and RMD.
+Read-only tools for projects, versions and RMD content (measures, dimensions, facts).
+
+> For tools that **modify** DataForge, see the [Write Tools Reference](tools-write.md).
+> For data marts, connections and the physical model, see
+> [Data Model Tools](tools-data-model.md).
+
+Shared structures (pagination, source objects, SQL code, errors) are documented in
+[Shared Schemas & Errors](schemas.md).
 
 ---
 
 ## `df_health`
 
-Check server, API and cache status.
+Check that the server is alive, the configuration loaded and the DataForge API reachable.
 
-**Input:** none
-
-**Output:**
+**Input:** none.
 
 ```json
 {
@@ -21,111 +26,62 @@ Check server, API and cache status.
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `server_status` | `string` | Always `"ok"` if the server is running |
-| `product_api_status` | `string` | `"ok"` or `"unavailable"` |
-| `base_url` | `string` | Configured DataForge API base URL |
-| `cache_status` | `string` | `"ok"` or `"unavailable"` |
+`product_api_status` is `unavailable` when a probe request fails; this never raises.
 
 ---
 
 ## `df_list_projects`
 
-List available DataForge projects accessible with the configured API key.
-
-**Input:**
+List projects visible to the configured API key. Projects the key cannot access are
+excluded from both the page and the total.
 
 | Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `page` | `integer` | `1` | Page number |
-| `page_size` | `integer` | `100` | Items per page |
-| `use_cache` | `boolean` | `true` | Use cached data if available |
-
-**Output:**
+|---|---|---|---|
+| `page` | integer | `1` | Page number |
+| `page_size` | integer | `100` | 1–100 |
+| `use_cache` | boolean | `true` | Set `false` to bypass the cache |
 
 ```json
 {
   "projects": [
-    {
-      "id": 392,
-      "name": "Fashion Retail",
-      "description": "Retail analytics project"
-    }
+    { "id": 12, "name": "Sales Analytics", "description": "Production sales warehouse" }
   ],
-  "pagination": {
-    "total": 10,
-    "page": 1,
-    "page_size": 100,
-    "total_pages": 1
-  }
+  "pagination": { "total": 2, "page": 1, "page_size": 100, "total_pages": 1 }
 }
 ```
-
-**Project fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | `integer` | Unique project identifier |
-| `name` | `string` | Project name |
-| `description` | `string \| null` | Project description |
 
 ---
 
 ## `df_list_versions`
 
-List versions for a specific project.
-
-**Input:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `project_id` | `integer` | yes | — | Project ID |
-| `page` | `integer` | no | `1` | Page number |
-| `page_size` | `integer` | no | `100` | Items per page |
-| `use_cache` | `boolean` | no | `true` | Use cached data |
-
-**Output:**
+| Parameter | Type | Default |
+|---|---|---|
+| `project_id` | integer | **required** |
+| `page`, `page_size`, `use_cache` | | as above |
 
 ```json
 {
   "project_id": 392,
-  "versions": [
-    {
-      "id": 948,
-      "name": "Global Version",
-      "is_global": true
-    }
-  ],
-  "pagination": { "total": 5, "page": 1, "page_size": 100, "total_pages": 1 }
+  "versions": [{ "id": 33, "name": "Q4 2025", "is_global": true }],
+  "pagination": { "total": 1, "page": 1, "page_size": 100, "total_pages": 1 }
 }
 ```
 
-**Version fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | `integer` | Unique version identifier |
-| `name` | `string` | Version name |
-| `is_global` | `boolean` | Whether this is the global (production) version |
+`is_global` marks the published version of the project.
 
 ---
 
 ## `df_get_measures`
 
-Get all measures (business metrics) for a project version. Set `include_sql=true` to get generated SQL code for each measure.
+All measures of a project version. The tool pages through the API automatically, so a
+version with more rows than one page comes back complete.
 
-**Input:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `project_id` | `integer` | yes | — | Project ID |
-| `version_id` | `integer` | yes | — | Version ID |
-| `language` | `string` | no | config default (`ru`) | Language for localized names |
-| `include_sql` | `boolean` | no | `false` | Include generated SQL code for each measure |
-| `use_cache` | `boolean` | no | `true` | Use cached data |
-
-**Output:**
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `project_id`, `version_id` | integer | **required** | |
+| `language` | string | server default | `ru` or `en`; affects reference labels only |
+| `include_sql` | boolean | `false` | Attach generated SQL to each measure |
+| `use_cache` | boolean | `true` | |
 
 ```json
 {
@@ -133,170 +89,128 @@ Get all measures (business metrics) for a project version. Set `include_sql=true
   "version_id": 948,
   "measures": [
     {
-      "row_number": "1",
-      "group": "Sales",
-      "block": "Revenue",
-      "name": "Total Revenue",
-      "description": "Total revenue from all sales",
-      "data_type": "Numeric",
-      "measure_type": "Sum",
-      "formula": "[Revenue]",
+      "id": "1000",
+      "row_number": 1,
+      "group": "Revenue",
+      "block": "Sales",
+      "name": "Total revenue",
+      "description": "Gross revenue across all channels",
+      "data_type": "Number",
+      "measure_type": "Base",
+      "formula": null,
       "restrictions": null,
-      "connected_source": {
-        "db": "Sales DB",
-        "schema": null,
-        "table": "sales_table",
-        "column": null
-      },
-      "sql_code": {
-        "generated_at": "2026-06-01T10:00:00Z",
-        "sql_scripts": [
-          {
-            "fact_table_id": "1",
-            "fact_table_name": "orders",
-            "sql": "SELECT SUM(amount) FROM orders"
-          }
-        ]
-      },
+      "original_source_type": "Database",
+      "original_source": "ERP",
+      "original_object": "sales.amount",
+      "report_for_verification": null,
+      "comment": null,
+      "display_data_type": "Number",
       "status": "Active",
-      "required": true,
-      "raw": {}
+      "relevance": null,
+      "required": null,
+      "visibility": null,
+      "responsible_for_data": null,
+      "variation": null,
+      "sql_code": null
     }
-  ]
+  ],
+  "pagination": { "total": 42, "page": 1, "page_size": 100, "total_pages": 1, "fetched": 42 }
 }
 ```
 
-> **Note:** `sql_code` is only present when `include_sql=true`. Otherwise it's `null`.
+| Field | Notes |
+|---|---|
+| `id` | **Stable identifier**, a string. This is what the write tools take — see [Entity IDs](schemas.md#entity-ids) |
+| `name` / `description` | Normalized from `measure_name` / `measure_description` |
+| `data_type` | Taken from the API's `display_data_type` (a localized label such as `Number`, `Text`, `Date`) |
+| `measure_type` | Localized label: `Base` / `Calculated` |
+| `required`, `relevance`, `visibility` | **Localized labels (strings), not booleans** |
+| `formula` | References are rendered as `[Element name]` |
+| `sql_code` | Only with `include_sql=true`, and only when generation succeeded |
+| `raw` | Not present unless requested via `df_get_rmd(include_raw=true)` |
 
-**Measure fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `row_number` | `string \| integer \| null` | Row number from RMD spreadsheet |
-| `group` | `string \| null` | Business group (e.g. "Sales", "Finance") |
-| `block` | `string \| null` | Block within a group (e.g. "Revenue", "Costs") |
-| `name` | `string \| null` | Measure name (localized) |
-| `description` | `string \| null` | Human-readable description |
-| `data_type` | `string \| null` | Data type (e.g. "Numeric", "String") |
-| `measure_type` | `string \| null` | Aggregation type (e.g. "Sum", "Count", "Average") |
-| `formula` | `string \| null` | Calculation formula |
-| `restrictions` | `string \| null` | Any restrictions or filters applied |
-| `connected_source` | `object \| null` | Database source mapping (see [Shared Schemas](schemas.md#connected-source-object)) |
-| `sql_code` | `object \| null` | Generated SQL code (see [Shared Schemas](schemas.md#sql-code-object)) |
-| `original_source_type` | `string \| null` | Source type (e.g. "Database") |
-| `original_source` | `string \| null` | Original data source name |
-| `original_object` | `string \| null` | Original object (table/view) name |
-| `report_for_verification` | `string \| null` | Report used to verify this measure |
-| `comment` | `string \| null` | Additional notes |
-| `display_data_type` | `string \| null` | Display format type |
-| `status` | `string \| null` | Status (e.g. "Active", "Draft") |
-| `relevance` | `string \| null` | Relevance level |
-| `required` | `boolean \| null` | Whether the measure is required |
-| `visibility` | `string \| null` | Visibility level |
-| `responsible_for_data` | `string \| null` | Team/person responsible for data quality |
-| `variation` | `string \| null` | Measure variation/variant |
-| `raw` | `object` | Original unmodified API response (empty by default) |
+Measures have no `connected_source` — only dimensions and facts do.
 
 ---
 
 ## `df_get_dimensions`
 
-Get all dimensions (attributes for slicing/filtering data) for a project version.
+Same parameters as `df_get_measures` minus `include_sql`.
 
-**Input:** same as `df_get_measures` (without `include_sql`).
+Dimension-specific fields:
 
-**Dimension fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `row_number` | `string \| integer \| null` | Row number from RMD spreadsheet |
-| `group` | `string \| null` | Business group |
-| `block` | `string \| null` | Block within a group |
-| `name` | `string \| null` | Dimension name (localized) |
-| `description` | `string \| null` | Human-readable description |
-| `dimension_group` | `string \| null` | Logical grouping |
-| `data_type` | `string \| null` | Data type |
-| `connected_source` | `object \| null` | Database source mapping |
-| `dimension_type` | `string \| null` | Dimension type classification |
-| `formula` | `string \| null` | Calculation formula |
-| `value_options` | `string \| array \| null` | Allowed values |
-| `status` | `string \| null` | Status |
-| `raw` | `object` | Original API response |
+| Field | Notes |
+|---|---|
+| `id` | Stable identifier |
+| `dimension_group` | Name of the dimension group this dimension belongs to |
+| `dimension_type` | Localized label, e.g. `Primary` |
+| `connected_source` | [Source object](schemas.md#source-object), including `connection` |
+| `source_data_type` | Derived from `connected_source` via the connection's cached schema; `null` if it could not be resolved |
+| `value_options` | Allowed values, where defined |
 
 ---
 
 ## `df_get_facts`
 
-Get all facts for a project version.
-
-**Input:** same as `df_get_measures` (without `include_sql`).
-
-**Fact fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | `string \| null` | Fact name (localized) |
-| `description` | `string \| null` | Description |
-| `source_data_type` | `string \| null` | Data type in source system |
-| `fact_type` | `string \| null` | Fact type (e.g. "Additive") |
-| `formula` | `string \| null` | Calculation formula |
-| `connected_source` | `object \| null` | Database source mapping |
-| `status` | `string \| null` | Status |
-| `raw` | `object` | Original API response |
+Same shape. Fact-specific fields: `fact_type` (localized label), `source_data_type`,
+`connected_source`, `report_for_verification`.
 
 ---
 
 ## `df_get_rmd`
 
-Get full RMD — all measures, dimensions, and facts in a single call.
+The normalized semantic context of a version in one call.
 
-**Input:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `project_id` | `integer` | yes | — | Project ID |
-| `version_id` | `integer` | yes | — | Version ID |
-| `language` | `string` | no | config default | Language |
-| `use_cache` | `boolean` | no | `true` | Use cached data |
-| `include_raw` | `boolean` | no | `false` | Include raw API response in each entity |
-
-**Output:**
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `project_id`, `version_id` | integer | **required** | |
+| `language` | string | server default | |
+| `include_sql` | boolean | `false` | Attach SQL to each measure |
+| `include_raw` | boolean | `false` | Keep the untouched API payload of every row under `raw` |
+| `use_cache` | boolean | `true` | |
 
 ```json
 {
-  "project": { "id": 392, "name": "", "description": null },
-  "version": { "id": 948, "name": "", "is_global": false },
+  "project": { "id": "12", "name": "Sales Analytics", "description": "..." },
+  "version": { "id": "33", "name": "Q4 2025", "is_global": true },
   "measures": [ ... ],
   "dimensions": [ ... ],
   "facts": [ ... ],
-  "stats": {
-    "measure_count": 120,
-    "dimension_count": 75,
-    "fact_count": 30
-  }
+  "stats": { "measure_count": 42, "dimension_count": 18, "fact_count": 6 }
 }
 ```
+
+`project` and `version` are taken from the API response, so they carry real names.
+
+This tool and [`df_get_consolidated_rmd`](tools-data-model.md#df_get_consolidated_rmd)
+read the **same endpoint** and share one cache entry: `df_get_rmd` returns the normalized
+projection, `df_get_consolidated_rmd` the raw export including the data model. Calling
+both costs one HTTP request.
 
 ---
 
 ## `df_refresh_cache`
 
-Force refresh cached data for a project version.
+Drop the cached state of a version and re-fetch its RMD snapshot.
 
-**Input:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `project_id` | `integer` | yes | — | Project ID |
-| `version_id` | `integer` | yes | — | Version ID |
-| `language` | `string` | no | config default | Language |
-
-**Output:**
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `project_id`, `version_id` | integer | **required** | |
+| `language` | string | server default | |
+| `scope` | string | `version` | `version`, `project` or `global` |
 
 ```json
 {
   "status": "refreshed",
+  "scope": "version",
+  "entries_removed": 7,
   "cache_key": "rmd:392:948:ru:False",
-  "fetched_at": "2026-03-29T12:00:00+00:00"
+  "fetched_at": "2026-09-22T08:00:00+00:00"
 }
 ```
+
+`scope=version` clears every cached family of that version (measures, dimensions, facts,
+RMD, data marts, connections, dimension groups, fact tables, relationships);
+`scope=project` additionally clears the project and version listings and project access.
+
+You rarely need this tool: writes invalidate their own scope automatically.

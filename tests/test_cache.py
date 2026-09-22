@@ -60,3 +60,31 @@ async def test_nonexistent_key(cache: FileCacheStore) -> None:
 @pytest.mark.asyncio
 async def test_is_healthy(cache: FileCacheStore) -> None:
     assert await cache.is_healthy() is True
+
+
+@pytest.mark.asyncio
+async def test_invalidate_prefix_drops_a_key_family(cache: FileCacheStore) -> None:
+    """Writes cannot enumerate the keys they affect, so they drop a whole prefix."""
+    await cache.set("measures:392:948:ru:False", {"a": 1}, 60)
+    await cache.set("measures:392:948:en:True", {"a": 2}, 60)
+    await cache.set("measures:392:999:ru:False", {"a": 3}, 60)
+
+    removed = await cache.invalidate_prefix("measures:392:948")
+
+    assert removed == 2
+    assert await cache.get("measures:392:948:ru:False") is None
+    assert await cache.get("measures:392:948:en:True") is None
+    # A different version is untouched.
+    assert await cache.get("measures:392:999:ru:False") == {"a": 3}
+
+
+@pytest.mark.asyncio
+async def test_invalidate_prefix_also_removes_an_exact_key(cache: FileCacheStore) -> None:
+    await cache.set("projects:1:100", {"a": 1}, 60)
+    assert await cache.invalidate_prefix("projects") == 1
+    assert await cache.get("projects:1:100") is None
+
+
+@pytest.mark.asyncio
+async def test_invalidate_prefix_on_empty_cache(cache: FileCacheStore) -> None:
+    assert await cache.invalidate_prefix("measures:1:2") == 0

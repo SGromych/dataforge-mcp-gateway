@@ -52,7 +52,7 @@ def test_fact_fields() -> None:
         source_data_type="Decimal",
         formula="[Amount]",
         status="Active",
-        required=True,
+        required="Да",
     )
     result = normalize_fact(raw)
     assert result.row_number == "1"
@@ -60,7 +60,8 @@ def test_fact_fields() -> None:
     assert result.fact_type == "Additive"
     assert result.source_data_type == "Decimal"
     assert result.formula == "[Amount]"
-    assert result.required is True
+    # Reference columns are localized labels in v2, not booleans.
+    assert result.required == "Да"
 
 
 def test_fact_connected_source() -> None:
@@ -106,12 +107,12 @@ def test_raw_preserved() -> None:
     raw = MeasureRaw(
         measure_name="Revenue",
         data_type="Numeric",
-        required=True,
+        required="Да",
     )
     result = normalize_measure(raw)
     assert result.raw["measure_name"] == "Revenue"
     assert result.raw["data_type"] == "Numeric"
-    assert result.raw["required"] is True
+    assert result.raw["required"] == "Да"
 
 
 def test_nullable_fields() -> None:

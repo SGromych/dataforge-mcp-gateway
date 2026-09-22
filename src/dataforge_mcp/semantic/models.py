@@ -8,18 +8,21 @@ from pydantic import BaseModel, Field
 
 
 class CanonicalProject(BaseModel):
-    id: int
-    name: str
+    id: int | str
+    name: str | None = None
     description: str | None = None
 
 
 class CanonicalVersion(BaseModel):
-    id: int
-    name: str
-    is_global: bool
+    id: int | str
+    name: str | None = None
+    is_global: bool | None = None
 
 
 class CanonicalConnectedSource(BaseModel):
+    """Source object. ``connection`` is the only field that identifies it uniquely."""
+
+    connection: str | None = None
     db: str | int | None = None
     schema_: str | None = Field(default=None, alias="schema")
     table: str | None = None
@@ -29,6 +32,7 @@ class CanonicalConnectedSource(BaseModel):
 
 
 class CanonicalMeasure(BaseModel):
+    id: str | None = None
     row_number: str | int | None = None
     group: str | None = None
     block: str | None = None
@@ -47,7 +51,7 @@ class CanonicalMeasure(BaseModel):
     display_data_type: str | None = None
     status: str | None = None
     relevance: str | None = None
-    required: bool | None = False
+    required: str | None = None
     visibility: str | None = None
     responsible_for_data: str | None = None
     variation: str | None = None
@@ -56,6 +60,7 @@ class CanonicalMeasure(BaseModel):
 
 
 class CanonicalDimension(BaseModel):
+    id: str | None = None
     row_number: str | int | None = None
     group: str | None = None
     block: str | None = None
@@ -75,13 +80,14 @@ class CanonicalDimension(BaseModel):
     source_data_type: str | None = None
     status: str | None = None
     relevance: str | None = None
-    required: bool | None = False
+    required: str | None = None
     visibility: str | None = None
     responsible_for_data: str | None = None
     raw: dict[str, Any] = Field(default_factory=dict)
 
 
 class CanonicalFact(BaseModel):
+    id: str | None = None
     row_number: str | int | None = None
     group: str | None = None
     block: str | None = None
@@ -98,7 +104,7 @@ class CanonicalFact(BaseModel):
     comment: str | None = None
     status: str | None = None
     relevance: str | None = None
-    required: bool | None = False
+    required: str | None = None
     visibility: str | None = None
     responsible_for_data: str | None = None
     raw: dict[str, Any] = Field(default_factory=dict)

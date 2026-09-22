@@ -1,4 +1,11 @@
-"""Abstract cache store and cache entry model."""
+"""Abstract cache store, cache entry model and cache-key builders.
+
+Keys are colon-separated and ordered ``<entity>:<project_id>:<version_id>:<...>`` so
+that any prefix of that path addresses a whole family of entries. Write operations rely
+on this: the exact set of keys a write invalidates cannot be derived from its arguments
+(keys are parameterised by language, paging and flags), so the whole version scope is
+dropped instead.
+"""
 
 from __future__ import annotations
 
@@ -29,11 +36,15 @@ class CacheStore(ABC):
     async def invalidate(self, key: str) -> None: ...
 
     @abstractmethod
+    async def invalidate_prefix(self, prefix: str) -> int:
+        """Drop every entry whose key starts with ``prefix``; return how many were removed."""
+
+    @abstractmethod
     async def is_healthy(self) -> bool: ...
 
 
 # ---------------------------------------------------------------------------
-# RMD API cache keys
+# RMD cache keys
 # ---------------------------------------------------------------------------
 
 
@@ -59,12 +70,17 @@ def facts_key(project_id: int, version_id: int, language: str) -> str:
     return f"facts:{project_id}:{version_id}:{language}"
 
 
-def rmd_key(project_id: int, version_id: int, language: str) -> str:
-    return f"rmd:{project_id}:{version_id}:{language}"
+def rmd_key(project_id: int, version_id: int, language: str, include_sql: bool = False) -> str:
+    """Key of the full RMD snapshot.
+
+    ``df_get_rmd`` and ``df_get_consolidated_rmd`` hit the same endpoint and therefore
+    share this entry — the second tool is a projection of the first one's payload.
+    """
+    return f"rmd:{project_id}:{version_id}:{language}:{include_sql}"
 
 
 # ---------------------------------------------------------------------------
-# DF API cache keys
+# Data model cache keys
 # ---------------------------------------------------------------------------
 
 
@@ -74,15 +90,22 @@ def data_marts_key(
     language: str,
     page: int = 1,
     page_size: int = 100,
-    type: str | None = None,
+    mart_type: str | None = None,
     merge_type: str | None = None,
     search: str | None = None,
 ) -> str:
-    return f"data_marts:{project_id}:{version_id}:{language}:{page}:{page_size}:{type}:{merge_type}:{search}"
+    return (
+        f"data_marts:{project_id}:{version_id}:{language}:{page}:{page_size}"
+        f":{mart_type}:{merge_type}:{search}"
+    )
 
 
 def data_mart_key(project_id: int, version_id: int, data_mart_id: int, language: str) -> str:
     return f"data_mart:{project_id}:{version_id}:{data_mart_id}:{language}"
+
+
+def data_mart_view_key(project_id: int, version_id: int, data_mart_id: int, language: str) -> str:
+    return f"data_mart_view:{project_id}:{version_id}:{data_mart_id}:{language}"
 
 
 def connections_key(
@@ -94,11 +117,28 @@ def connections_key(
     db_type: str | None = None,
     status: str | None = None,
 ) -> str:
-    return f"connections:{project_id}:{version_id}:{language}:{page}:{page_size}:{db_type}:{status}"
+    return (
+        f"connections:{project_id}:{version_id}:{language}:{page}:{page_size}"
+        f":{db_type}:{status}"
+    )
 
 
-def connection_key(project_id: int, version_id: int, connection_id: int, language: str) -> str:
-    return f"connection:{project_id}:{version_id}:{connection_id}:{language}"
+def connection_key(
+    project_id: int,
+    version_id: int,
+    connection_id: int,
+    language: str,
+    include_db_schema: bool = False,
+) -> str:
+    return (
+        f"connection:{project_id}:{version_id}:{connection_id}:{language}:{include_db_schema}"
+    )
+
+
+def connection_schema_key(
+    project_id: int, version_id: int, connection_id: int, language: str
+) -> str:
+    return f"connection_schema:{project_id}:{version_id}:{connection_id}:{language}"
 
 
 def dimension_groups_key(
@@ -126,7 +166,10 @@ def fact_table_key(
     language: str,
     include_dependencies: bool = False,
 ) -> str:
-    return f"fact_table:{project_id}:{version_id}:{fact_table_id}:{language}:{include_dependencies}"
+    return (
+        f"fact_table:{project_id}:{version_id}:{fact_table_id}:{language}"
+        f":{include_dependencies}"
+    )
 
 
 def relationships_key(
@@ -138,7 +181,10 @@ def relationships_key(
     fact_table_id: int | None = None,
     dimension_group_id: int | None = None,
 ) -> str:
-    return f"relationships:{project_id}:{version_id}:{language}:{page}:{page_size}:{fact_table_id}:{dimension_group_id}"
+    return (
+        f"relationships:{project_id}:{version_id}:{language}:{page}:{page_size}"
+        f":{fact_table_id}:{dimension_group_id}"
+    )
 
 
 def relationship_key(project_id: int, version_id: int, relationship_id: int, language: str) -> str:
@@ -148,4 +194,17 @@ def relationship_key(project_id: int, version_id: int, relationship_id: int, lan
 def consolidated_rmd_key(
     project_id: int, version_id: int, language: str, include_sql: bool = False
 ) -> str:
-    return f"consolidated_rmd:{project_id}:{version_id}:{language}:{include_sql}"
+    """Alias of :func:`rmd_key` — both tools read the same snapshot."""
+    return rmd_key(project_id, version_id, language, include_sql)
+
+
+def project_access_key(project_id: int, language: str) -> str:
+    return f"project_access:{project_id}:{language}"
+
+
+def git_connections_key(page: int = 1, page_size: int = 100) -> str:
+    return f"git_connections:{page}:{page_size}"
+
+
+def git_connection_key(connection_id: int) -> str:
+    return f"git_connection:{connection_id}"
