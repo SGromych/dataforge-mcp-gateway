@@ -8,10 +8,10 @@
 [![MCP](https://img.shields.io/badge/MCP-1.26-6E56CF)](https://modelcontextprotocol.io/)
 [![DataForge API](https://img.shields.io/badge/DataForge%20API-v2-2479BC)](https://businessqlik.com)
 [![Tools](https://img.shields.io/badge/tools-65-success)](#what-you-get)
-[![Tests](https://img.shields.io/badge/tests-415%20passing-brightgreen)](#development)
+[![Tests](https://img.shields.io/badge/tests-478%20passing-brightgreen)](#development)
 [![License](https://img.shields.io/badge/license-Proprietary-lightgrey)](#license)
 
-[Quick start](#quick-start) · [Tools](#what-you-get) · [Writing data](#writing-data) · [Documentation](#documentation)
+[Quick start](#quick-start) · [Tools](#what-you-get) · [Writing data](#writing-data) · [Open WebUI](#open-webui) · [Documentation](#documentation)
 
 </div>
 
@@ -115,8 +115,18 @@ DATAFORGE_API_KEY=your_api_key_here
 
 ```bash
 python -m dataforge_mcp          # stdio, for Claude Desktop / Cursor
-docker compose up                # SSE on :8080
+docker compose up                # Streamable HTTP on http://localhost:8080/mcp
 ```
+
+| Transport | `MCP_TRANSPORT` | Clients |
+|---|---|---|
+| stdio | `stdio` (default) | Claude Desktop, Cursor |
+| Streamable HTTP | `streamable-http` | Open WebUI, MCP Inspector, remote deployments |
+| HTTP+SSE | `sse` | **Deprecated** — kept for existing deployments |
+
+Over HTTP the port is the only thing between the network and the 38 write tools, so set
+`MCP_AUTH_TOKEN` for any bind that is not loopback. Full reference:
+[docs/api/transports.md](docs/api/transports.md).
 
 Or skip MCP entirely and use it as a library:
 
@@ -166,6 +176,28 @@ asyncio.run(main())
 
 Then ask Claude: *"What measures are available in the Fashion Retail project?"* — it will
 chain `df_list_projects` → `df_list_versions` → `df_get_measures` on its own.
+
+## Open WebUI
+
+Open WebUI speaks **Streamable HTTP only**, which this server now serves natively — no
+`mcpo` proxy needed.
+
+```bash
+cp .env.example .env
+# set DATAFORGE_API_KEY, and MCP_AUTH_TOKEN
+docker compose up -d
+```
+
+Then in Open WebUI, as an administrator: **Settings → Admin → Integrations → + Add
+Connection**, type **MCP (Streamable HTTP)**, URL `http://host.docker.internal:8080/mcp`,
+Auth **Bearer** with your `MCP_AUTH_TOKEN`. All 65 tools appear.
+
+> [!WARNING]
+> Every Open WebUI user who can use the tools gets all 65, including the 38 that delete
+> data — and they all share one DataForge key. Start with an `analyst` / `viewer` key and a
+> non-production version.
+
+Full walkthrough, URL table and troubleshooting: [docs/api/open-webui.md](docs/api/open-webui.md).
 
 ## Examples
 
@@ -328,10 +360,14 @@ whole scope they touched. A read right after a write always hits the API.
 | [**Write Tools** ⚠️](docs/api/tools-write.md) | Everything that modifies DataForge |
 | [Schemas & Errors](docs/api/schemas.md) | Source objects, pagination, error catalogue |
 | [Configuration](docs/api/configuration.md) | Environment, Docker, architecture |
+| [Transports](docs/api/transports.md) | stdio, Streamable HTTP, auth, Origin validation, proxies |
+| [Open WebUI](docs/api/open-webui.md) | Step-by-step connection guide |
+| [Transport Decisions](docs/api/transport-decisions.md) | Why the transport works the way it does |
 
 ## Key Features
 
 - **Complete DF API v2 surface** — reads, writes, version transfer, Git connection registry
+- **Three transports** — stdio, Streamable HTTP (Open WebUI-ready, with bearer auth and Origin validation), and legacy SSE
 - **Safety annotations** — every tool carries MCP `readOnlyHint` / `destructiveHint`, so clients can warn before a destructive call
 - **Idempotent writes** — automatic `Idempotency-Key` makes retries safe
 - **Smart caching** — TTL + last-known-good for reads; scope invalidation for writes
@@ -344,8 +380,9 @@ whole scope they touched. A read right after a write always hits the API.
 
 ```bash
 pip install -e ".[dev]"
-pytest                              # 415 tests
-pytest tests/test_mcp_server.py -v  # end-to-end over MCP, no network
+pytest                                       # 478 tests
+pytest tests/test_mcp_server.py -v           # end-to-end over MCP, stdio path
+pytest tests/test_mcp_streamable_http.py -v  # end-to-end over MCP, HTTP path
 ruff check src/ tests/
 ruff format src/ tests/
 ```

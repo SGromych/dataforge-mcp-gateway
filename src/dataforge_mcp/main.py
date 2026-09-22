@@ -11,14 +11,7 @@ def main() -> None:
     setup_logging(settings.log_level)
 
     from dataforge_mcp.mcp.server import create_mcp_server
+    from dataforge_mcp.transport import run_transport
 
     server = create_mcp_server(settings)
-
-    if settings.mcp_transport == "sse":
-        from dataforge_mcp.transport.sse import run_sse
-
-        asyncio.run(run_sse(server, settings))
-    else:
-        from dataforge_mcp.transport.stdio import run_stdio
-
-        asyncio.run(run_stdio(server))
+    asyncio.run(run_transport(server, settings))

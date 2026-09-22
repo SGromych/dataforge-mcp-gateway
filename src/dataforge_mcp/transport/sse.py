@@ -1,4 +1,11 @@
-"""SSE transport for MCP server."""
+"""Deprecated HTTP+SSE transport for the MCP server.
+
+This is the transport from MCP protocol revision 2024-11-05. It was deprecated
+in revision 2025-03-26 and replaced by Streamable HTTP (`streamable_http.py`).
+It is kept so existing deployments keep working; new ones should set
+`MCP_TRANSPORT=streamable-http`. Unlike the streamable-http transport, this one
+has no authentication and no Origin validation - do not expose it directly.
+"""
 
 from __future__ import annotations
 

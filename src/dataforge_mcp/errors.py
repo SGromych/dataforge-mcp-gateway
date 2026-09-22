@@ -93,6 +93,9 @@ class ErrorCode(StrEnum):
     CACHE_READ_ERROR = "CACHE_READ_ERROR"
     CACHE_WRITE_ERROR = "CACHE_WRITE_ERROR"
 
+    # --- MCP transport (this server, not DataForge) ------------------------
+    MCP_UNAUTHORIZED = "MCP_UNAUTHORIZED"
+
 
 class DataForgeError(Exception):
     """Normalized DataForge failure, serializable straight into a tool result."""
@@ -236,6 +239,9 @@ _STATUS_FALLBACK: dict[int, ErrorCode] = {
 
 # Actionable guidance for codes an agent can fix on its own.
 _HINTS: dict[ErrorCode, str] = {
+    ErrorCode.MCP_UNAUTHORIZED: (
+        "Send Authorization: Bearer <token> matching MCP_AUTH_TOKEN on the server."
+    ),
     ErrorCode.DATAFORGE_VALIDATION_FAILED: (
         "Check fields[]: unknown_field means remove it, missing_field means add it,"
         " invalid_value means the type or value is wrong."

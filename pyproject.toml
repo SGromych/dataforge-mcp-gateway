@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dataforge-mcp"
-version = "0.2.0"
+version = "0.3.0"
 description = "DataForge Semantic MCP Server - read and write access to the DataForge semantic layer"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,7 +13,7 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.2",
     "structlog>=24.1",
-    "mcp>=1.0",
+    "mcp>=1.26",
     "starlette>=0.37",
     "uvicorn>=0.30",
 ]

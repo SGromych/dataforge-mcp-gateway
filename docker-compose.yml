@@ -3,9 +3,21 @@ services:
     build: .
     env_file: .env
     environment:
-      - MCP_TRANSPORT=sse
+      # Streamable HTTP is the transport Open WebUI and other HTTP clients speak.
+      - MCP_TRANSPORT=streamable-http
       - HOST=0.0.0.0
       - PORT=8080
+      - MCP_HTTP_PATH=/mcp
+
+      # STRONGLY RECOMMENDED. Without it anyone who can reach port 8080 gets the
+      # full tool surface, including the 38 tools that write to DataForge and can
+      # permanently delete projects and versions. Put the value in .env.
+      # - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN}
+
+      # Origin validation (DNS-rebinding protection) stays off while this is
+      # unset, because the bind is not loopback. List the authorities clients
+      # actually use, e.g. host.docker.internal:8080 for Open WebUI on the host.
+      # - MCP_ALLOWED_HOSTS=host.docker.internal:8080,localhost:8080
     ports:
       - "8080:8080"
     volumes:

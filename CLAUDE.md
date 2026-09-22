@@ -43,7 +43,9 @@ ruff format src/ tests/
 ## Architecture
 
 ```
-Transport Layer (mcp/)           -> MCP protocol (stdio + SSE), tool definitions, handler registry
+Transport Layer (transport/)     -> stdio, Streamable HTTP (auth + Origin validation), legacy SSE
+        |
+MCP Layer (mcp/)                 -> tool definitions, handler registry
         |
 Application Layer (application/) -> Use-case orchestration (client + cache + normalizer)
         |
@@ -56,6 +58,9 @@ Module map:
 
 | Module | Role |
 |---|---|
+| `transport/__init__.py` | `run_transport` — the single transport dispatch point |
+| `transport/streamable_http.py` | Streamable HTTP: session manager, Starlette app, security derivation |
+| `transport/auth.py` | `BearerAuthMiddleware` — raw ASGI, never `BaseHTTPMiddleware` (it breaks SSE) |
 | `mcp/tools_read.py` / `tools_write.py` | Tool definitions + `Handler` registries |
 | `mcp/schema_fragments.py` | Reusable inputSchema pieces and filter value catalogues |
 | `mcp/tools.py` | Composition, `register_tools`, `_dispatch` |
@@ -107,17 +112,34 @@ cache refresh and two import dry runs). Every tool carries `ToolAnnotations` —
 
 See `docs/api/tools-semantic.md`, `tools-data-model.md` and `tools-write.md`.
 
+## Transports
+
+Three: `stdio` (default), `streamable-http` (single endpoint at `MCP_HTTP_PATH`, default `/mcp`) and the deprecated `sse`.
+
+Streamable HTTP rules that are easy to break and are pinned by tests:
+
+- **Mount the endpoint as an ASGI class instance, never a bound method.** Starlette's `Route` treats a bound method as an HTTP handler and restricts it to `methods=["GET"]`, so every POST would 405. `StreamableHTTPASGIApp` exists for this.
+- **Auth middleware must be raw ASGI.** `BaseHTTPMiddleware` buffers responses and breaks SSE streaming.
+- **Never enable DNS-rebinding protection with an empty allow-list** — it rejects every request. `build_security_settings` derives: explicit allow-list -> loopback defaults -> off with a warning.
+- `/health` is exempt from bearer auth, so container probes keep working with a token set.
+- Both `/mcp` and `/mcp/` are registered; a 307 redirect is not safe on POST.
+
+Decisions and the alternatives weighed are recorded in `docs/api/transport-decisions.md` — update it when one of them changes. See also `docs/api/transports.md` and `docs/api/open-webui.md`.
+
 ## Tech Stack & Conventions
 
 - Python 3.11+, type hints everywhere
 - `pydantic` v2 for models, `pydantic-settings` for config (`SecretStr` for API keys)
 - `httpx` for HTTP, `structlog` for logging, `mcp` SDK for the protocol
 - `pytest` + `pytest-asyncio`, `respx` for HTTP mocking, `jsonschema` for schema checks, `ruff` for linting
+- `mcp>=1.26` is a hard floor: `StreamableHTTPSessionManager` and `streamable_http_client` need it
 - Line length 99; comments and code in English
 
 ## Config
 
-Settings via env vars or `.env`. Key variables: `DATAFORGE_BASE_URL`, `DATAFORGE_API_KEY` (secret), `DEFAULT_LANGUAGE` (default `ru`), `CACHE_TTL_SECONDS`, `MCP_TRANSPORT` (`stdio`/`sse`), `LOG_LEVEL`.
+Settings via env vars or `.env`. Key variables: `DATAFORGE_BASE_URL`, `DATAFORGE_API_KEY` (secret), `DEFAULT_LANGUAGE` (default `ru`), `CACHE_TTL_SECONDS`, `MCP_TRANSPORT` (`stdio`/`streamable-http`/`sse`), `MCP_AUTH_TOKEN`, `MCP_ALLOWED_HOSTS`, `LOG_LEVEL`.
+
+`MCP_TRANSPORT` is validated, not fallback-matched — an unknown value raises at startup. Add a transport in `TRANSPORTS` (`config.py`) and `run_transport`; argparse `choices` follows automatically.
 
 ## Error Handling
 
@@ -135,3 +157,5 @@ Settings via env vars or `.env`. Key variables: `DATAFORGE_BASE_URL`, `DATAFORGE
 ## Testing
 
 Mock DataForge with `respx`; fixtures come from `tests/fixtures/api_v2.py`. Coverage spans the client (read and write), transport, errors, normalizer, cache, service and the MCP layer — including an in-memory end-to-end test over the real MCP protocol (`tests/test_mcp_server.py`) and a contract test asserting the tool↔handler bijection and JSON Schema validity (`tests/test_mcp_contract.py`).
+
+The Streamable HTTP transport is tested over a real ASGI stack without binding a socket: `create_session_manager` and `build_app` are separate so a test can enter `manager.run()` by hand and drive the app through `httpx.ASGITransport` (`tests/test_mcp_streamable_http.py`), including the full MCP client via `streamable_http_client`. Keep that split — collapsing it into `run_streamable_http` would make the transport untestable without a socket.
