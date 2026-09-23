@@ -118,8 +118,7 @@ def connections_key(
     status: str | None = None,
 ) -> str:
     return (
-        f"connections:{project_id}:{version_id}:{language}:{page}:{page_size}"
-        f":{db_type}:{status}"
+        f"connections:{project_id}:{version_id}:{language}:{page}:{page_size}:{db_type}:{status}"
     )
 
 
@@ -130,9 +129,7 @@ def connection_key(
     language: str,
     include_db_schema: bool = False,
 ) -> str:
-    return (
-        f"connection:{project_id}:{version_id}:{connection_id}:{language}:{include_db_schema}"
-    )
+    return f"connection:{project_id}:{version_id}:{connection_id}:{language}:{include_db_schema}"
 
 
 def connection_schema_key(
@@ -167,8 +164,7 @@ def fact_table_key(
     include_dependencies: bool = False,
 ) -> str:
     return (
-        f"fact_table:{project_id}:{version_id}:{fact_table_id}:{language}"
-        f":{include_dependencies}"
+        f"fact_table:{project_id}:{version_id}:{fact_table_id}:{language}:{include_dependencies}"
     )
 
 

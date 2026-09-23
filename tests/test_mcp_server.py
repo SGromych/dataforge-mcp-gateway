@@ -1,8 +1,8 @@
 """End-to-end MCP tests over the real protocol, without a network or a subprocess.
 
-`create_connected_server_and_client_session` wires a client and the server together
-in memory, so these tests exercise initialize / list_tools / call_tool exactly as a
-real MCP client would.
+`Client(server)` wires a client and the server together in memory, so these tests
+exercise initialize / list_tools / call_tool exactly as a real MCP client would -
+no socket, no subprocess.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from pathlib import Path
 import httpx
 import pytest
 import respx
-from mcp.shared.memory import create_connected_server_and_client_session
+from mcp import Client
 
 from dataforge_mcp.config import Settings
 from dataforge_mcp.mcp.server import create_mcp_server
@@ -44,7 +44,7 @@ def payload_of(result) -> dict:
 @pytest.mark.asyncio
 async def test_initialize_and_list_tools(settings: Settings) -> None:
     server = create_mcp_server(settings)
-    async with create_connected_server_and_client_session(server) as client:
+    async with Client(server) as client:
         listing = await client.list_tools()
 
     names = {t.name for t in listing.tools}
@@ -60,7 +60,7 @@ async def test_call_tool_returns_json_text(settings: Settings) -> None:
         return_value=httpx.Response(200, json=fx.PROJECTS_200)
     )
     server = create_mcp_server(settings)
-    async with create_connected_server_and_client_session(server) as client:
+    async with Client(server) as client:
         result = await client.call_tool("df_list_projects", {"page": 1})
 
     data = payload_of(result)
@@ -74,7 +74,7 @@ async def test_api_error_is_returned_without_leaking_the_key(settings: Settings)
         return_value=httpx.Response(404, json=fx.ERR_404_PROJECT)
     )
     server = create_mcp_server(settings)
-    async with create_connected_server_and_client_session(server) as client:
+    async with Client(server) as client:
         result = await client.call_tool("df_list_versions", {"project_id": 392})
 
     text = result.content[0].text
@@ -92,7 +92,7 @@ async def test_validation_error_reaches_the_agent_with_fields(settings: Settings
         return_value=httpx.Response(400, json=fx.ERR_400_VALIDATION_FAILED)
     )
     server = create_mcp_server(settings)
-    async with create_connected_server_and_client_session(server) as client:
+    async with Client(server) as client:
         result = await client.call_tool(
             "df_write_measure",
             {
@@ -112,7 +112,7 @@ async def test_validation_error_reaches_the_agent_with_fields(settings: Settings
 async def test_local_validation_uses_the_same_error_shape(settings: Settings) -> None:
     """Local and server-side rejections must be indistinguishable to the agent."""
     server = create_mcp_server(settings)
-    async with create_connected_server_and_client_session(server) as client:
+    async with Client(server) as client:
         result = await client.call_tool(
             "df_write_measure",
             {
@@ -131,9 +131,9 @@ async def test_local_validation_uses_the_same_error_shape(settings: Settings) ->
 @pytest.mark.asyncio
 async def test_bad_argument_type_does_not_kill_the_session(settings: Settings) -> None:
     server = create_mcp_server(settings)
-    async with create_connected_server_and_client_session(server) as client:
+    async with Client(server) as client:
         bad = await client.call_tool("df_list_versions", {"project_id": "not-an-int"})
-        assert bad.isError or "error" in bad.content[0].text
+        assert bad.is_error or "error" in bad.content[0].text
 
         # The session survives and still answers.
         listing = await client.list_tools()
@@ -147,7 +147,7 @@ async def test_write_tool_end_to_end(settings: Settings) -> None:
         return_value=httpx.Response(201, json=fx.MEASURE_CREATED_201)
     )
     server = create_mcp_server(settings)
-    async with create_connected_server_and_client_session(server) as client:
+    async with Client(server) as client:
         result = await client.call_tool(
             "df_write_measure",
             {
@@ -172,7 +172,7 @@ async def test_health_reports_api_and_cache(settings: Settings) -> None:
         return_value=httpx.Response(200, json=fx.PROJECTS_200)
     )
     server = create_mcp_server(settings)
-    async with create_connected_server_and_client_session(server) as client:
+    async with Client(server) as client:
         result = await client.call_tool("df_health", {})
 
     data = payload_of(result)
@@ -193,7 +193,7 @@ async def test_unknown_tool_is_reported(settings: Settings) -> None:
 @pytest.mark.asyncio
 async def test_missing_required_argument_is_a_clean_error(settings: Settings) -> None:
     server = create_mcp_server(settings)
-    async with create_connected_server_and_client_session(server) as client:
+    async with Client(server) as client:
         result = await client.call_tool("df_delete_measure", {"project_id": 392})
 
     text = result.content[0].text
@@ -206,7 +206,7 @@ async def test_secrets_never_appear_in_tool_output(settings: Settings) -> None:
     """Git credentials go out on the wire but must never come back to the agent."""
     respx.post(f"{PFX}/export/git").mock(return_value=httpx.Response(200, json=fx.EXPORT_GIT_200))
     server = create_mcp_server(settings)
-    async with create_connected_server_and_client_session(server) as client:
+    async with Client(server) as client:
         result = await client.call_tool(
             "df_export_version_to_git",
             {

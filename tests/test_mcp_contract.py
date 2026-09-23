@@ -43,13 +43,13 @@ def test_every_tool_has_a_description() -> None:
 @pytest.mark.parametrize("tool", TOOLS, ids=lambda t: t.name)
 def test_input_schema_is_valid_json_schema(tool: Tool) -> None:
     """mcp >= 1.10 validates arguments server-side; a broken schema breaks the call."""
-    jsonschema.Draft202012Validator.check_schema(tool.inputSchema)
+    jsonschema.Draft202012Validator.check_schema(tool.input_schema)
 
 
 @pytest.mark.parametrize("tool", TOOLS, ids=lambda t: t.name)
 def test_required_properties_are_declared(tool: Tool) -> None:
-    properties = tool.inputSchema.get("properties", {})
-    for name in tool.inputSchema.get("required", []):
+    properties = tool.input_schema.get("properties", {})
+    for name in tool.input_schema.get("required", []):
         assert name in properties, f"{tool.name}: required '{name}' is not a property"
 
 
@@ -98,18 +98,18 @@ def test_every_tool_carries_annotations() -> None:
 
 @pytest.mark.parametrize("name", sorted(_READ_TOOLS))
 def test_read_tools_are_marked_read_only(name: str) -> None:
-    assert TOOLS_BY_NAME[name].annotations.readOnlyHint is True
+    assert TOOLS_BY_NAME[name].annotations.read_only_hint is True
 
 
 def test_write_tools_are_not_marked_read_only() -> None:
     for tool in TOOLS:
         if tool.name not in _READ_TOOLS:
-            assert tool.annotations.readOnlyHint is False, tool.name
+            assert tool.annotations.read_only_hint is False, tool.name
 
 
 def test_destructive_tools_are_flagged() -> None:
     """Anything that deletes or overwrites must warn the client."""
-    destructive = {t.name for t in TOOLS if t.annotations.destructiveHint}
+    destructive = {t.name for t in TOOLS if t.annotations.destructive_hint}
     for name in TOOLS_BY_NAME:
         if name.startswith(("df_delete_", "df_unassign_", "df_remove_")):
             assert name in destructive, name
@@ -144,7 +144,7 @@ def test_delete_project_spells_out_the_blast_radius() -> None:
 
 
 def test_filter_enums_match_the_documented_catalogues() -> None:
-    marts = TOOLS_BY_NAME["df_list_data_marts"].inputSchema["properties"]
+    marts = TOOLS_BY_NAME["df_list_data_marts"].input_schema["properties"]
     assert marts["merge_type"]["enum"] == ["union", "join"]
     assert marts["mart_type"]["enum"] == [
         "with_grouping",
@@ -152,7 +152,7 @@ def test_filter_enums_match_the_documented_catalogues() -> None:
         "with_grouping_and_pivoting",
     ]
 
-    connections = TOOLS_BY_NAME["df_list_connections"].inputSchema["properties"]
+    connections = TOOLS_BY_NAME["df_list_connections"].input_schema["properties"]
     assert connections["db_type"]["enum"] == ["postgresql", "clickhouse", "sqlserver"]
     assert connections["status"]["enum"] == [
         "active",
@@ -161,30 +161,30 @@ def test_filter_enums_match_the_documented_catalogues() -> None:
         "failed",
     ]
 
-    assert TOOLS_BY_NAME["df_write_relationship"].inputSchema["properties"]["relationship_type"][
+    assert TOOLS_BY_NAME["df_write_relationship"].input_schema["properties"]["relationship_type"][
         "enum"
     ] == ["many_to_one"]
 
 
 def test_generate_sql_bounds() -> None:
-    props = TOOLS_BY_NAME["df_generate_sql"].inputSchema["properties"]
+    props = TOOLS_BY_NAME["df_generate_sql"].input_schema["properties"]
     assert props["limit"]["minimum"] == 1
     assert props["offset"]["minimum"] == 0
 
 
 def test_page_size_is_capped_at_the_api_limit() -> None:
-    props = TOOLS_BY_NAME["df_list_data_marts"].inputSchema["properties"]
+    props = TOOLS_BY_NAME["df_list_data_marts"].input_schema["properties"]
     assert props["page_size"]["maximum"] == 100
 
 
 def test_write_tools_expose_idempotency_key() -> None:
     for name in ("df_write_measure", "df_create_project", "df_bulk_write_measures"):
-        assert "idempotency_key" in TOOLS_BY_NAME[name].inputSchema["properties"]
+        assert "idempotency_key" in TOOLS_BY_NAME[name].input_schema["properties"]
 
 
 def test_mode_default_is_create() -> None:
     for name in ("df_write_measure", "df_write_dimension", "df_write_fact"):
-        assert TOOLS_BY_NAME[name].inputSchema["properties"]["mode"]["default"] == "create"
+        assert TOOLS_BY_NAME[name].input_schema["properties"]["mode"]["default"] == "create"
 
 
 # ---------------------------------------------------------------------------
@@ -203,12 +203,12 @@ def _tools_listed_under(heading: str, until: str) -> set[str]:
 
 def test_readme_read_table_matches_read_only_tools() -> None:
     listed = _tools_listed_under("### Read — 24 tools", "### Write")
-    assert listed == {t.name for t in TOOLS if t.annotations.readOnlyHint}
+    assert listed == {t.name for t in TOOLS if t.annotations.read_only_hint}
 
 
 def test_readme_write_table_matches_state_changing_tools() -> None:
     listed = _tools_listed_under("### Write — 41 tools", "Full reference")
-    assert listed == {t.name for t in TOOLS if not t.annotations.readOnlyHint}
+    assert listed == {t.name for t in TOOLS if not t.annotations.read_only_hint}
 
 
 def test_readme_documents_every_tool() -> None:

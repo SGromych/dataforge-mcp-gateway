@@ -15,6 +15,8 @@ Usage as MCP server:
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
+
 from dataforge_mcp.application.use_cases import SemanticService
 from dataforge_mcp.cache.file_store import FileCacheStore
 from dataforge_mcp.config import Settings, get_settings
@@ -43,4 +45,10 @@ def create_semantic_service(
     return SemanticService(client=client, cache=cache, settings=settings)
 
 
-__all__ = ["create_semantic_service", "SemanticService"]
+try:
+    __version__ = version("dataforge-mcp")
+except PackageNotFoundError:  # pragma: no cover - running from a source tree
+    __version__ = "0.0.0.dev0"
+
+
+__all__ = ["create_semantic_service", "SemanticService", "__version__"]

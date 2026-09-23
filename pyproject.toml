@@ -13,11 +13,12 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.2",
     "structlog>=24.1",
-    # An upper bound is mandatory: mcp 2.x dropped the list_tools()/call_tool()
-    # decorators from mcp.server.Server, so an unpinned install starts and dies
-    # with AttributeError. Verified: 1.30.0 works, 2.2.0 does not.
-    "mcp>=1.26,<2",
-    "starlette>=0.37",
+    # 2.x is a different registration API: the server takes on_list_tools /
+    # on_call_tool instead of the 1.x @server.list_tools() decorators, and it no
+    # longer validates tool arguments (mcp/arguments.py does). Both bounds matter -
+    # 1.x cannot run this code, and 3.x has not been seen.
+    "mcp>=2.2,<3",
+    "starlette>=1.7",
     "uvicorn>=0.30",
 ]
 

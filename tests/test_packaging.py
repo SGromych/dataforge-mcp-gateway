@@ -36,11 +36,7 @@ def _git(*args: str) -> str:
 
 
 def _source_modules() -> list[Path]:
-    return sorted(
-        path
-        for path in PACKAGE_ROOT.rglob("*.py")
-        if "__pycache__" not in path.parts
-    )
+    return sorted(path for path in PACKAGE_ROOT.rglob("*.py") if "__pycache__" not in path.parts)
 
 
 def test_every_source_module_is_tracked_by_git() -> None:

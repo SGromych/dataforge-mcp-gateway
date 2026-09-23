@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import httpx2
 import pytest
 import respx
 from mcp import ClientSession
@@ -435,23 +436,28 @@ async def test_allowed_origin_passes(tmp_path: Path) -> None:
 async def mcp_client(settings: Settings, headers: dict[str, str] | None = None):
     """Drive the SDK's streamable-http client against the in-process app.
 
-    `streamable_http_client` accepts a ready-made httpx client, so handing it one
+    `streamable_http_client` accepts a ready-made HTTP client, so handing it one
     backed by an ASGI transport gives a true end-to-end protocol test - real
     initialize, real session id, real SSE framing - with no network.
+
+    The client here is `httpx2`, the HTTP library the MCP SDK 2.x speaks; our own
+    DataForge calls stay on `httpx`, which is why respx can keep mocking them while
+    this client talks to the app.
     """
     server = create_mcp_server(settings)
     manager = create_session_manager(server, settings)
     app = build_app(manager, settings)
 
     async with manager.run():
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app),
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=app),
             headers=headers,
-            timeout=httpx.Timeout(30.0),
+            timeout=httpx2.Timeout(30.0),
         ) as http_client:
+            # SDK 2.x yields two streams; the session-id getter of 1.x is gone.
             async with streamable_http_client(
                 "http://127.0.0.1:8080/mcp", http_client=http_client
-            ) as (read_stream, write_stream, _get_session_id):
+            ) as (read_stream, write_stream):
                 async with ClientSession(read_stream, write_stream) as session:
                     await session.initialize()
                     yield session
@@ -502,5 +508,5 @@ async def test_end_to_end_tool_annotations_survive_http(http_settings: Settings)
         listing = await session.list_tools()
 
     by_name = {tool.name: tool for tool in listing.tools}
-    assert by_name["df_list_projects"].annotations.readOnlyHint is True
-    assert by_name["df_delete_project"].annotations.destructiveHint is True
+    assert by_name["df_list_projects"].annotations.read_only_hint is True
+    assert by_name["df_delete_project"].annotations.destructive_hint is True
