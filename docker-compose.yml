@@ -11,8 +11,14 @@ services:
 
       # STRONGLY RECOMMENDED. Without it anyone who can reach port 8080 gets the
       # full tool surface, including the 38 tools that write to DataForge and can
-      # permanently delete projects and versions. Put the value in .env.
-      # - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN}
+      # permanently delete projects and versions.
+      #
+      # Generate one:  python -c "import secrets; print(secrets.token_urlsafe(32))"
+      # Compose substitutes this from the shell or from the project's .env, so
+      # putting MCP_AUTH_TOKEN in .env is enough. Left empty, the server starts
+      # unauthenticated and says so in the log - it does not start with an empty
+      # token that would lock every client out.
+      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN:-}
 
       # Origin validation (DNS-rebinding protection) stays off while this is
       # unset, because the bind is not loopback. List the authorities clients

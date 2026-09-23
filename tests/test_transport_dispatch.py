@@ -74,6 +74,22 @@ def test_loopback_detection(host: str, loopback: bool) -> None:
     assert Settings(host=host).binds_loopback_only is loopback
 
 
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_blank_auth_token_means_no_auth(blank: str) -> None:
+    """`MCP_AUTH_TOKEN=` used to install the middleware with an empty secret.
+
+    Every well-formed request was then rejected while the log still said
+    `auth=bearer` - the worst of both answers.
+    """
+    assert Settings(mcp_auth_token=blank).mcp_auth_token is None
+
+
+def test_a_real_auth_token_survives() -> None:
+    settings = Settings(mcp_auth_token="s3cret-token")
+    assert settings.mcp_auth_token is not None
+    assert settings.mcp_auth_token.get_secret_value() == "s3cret-token"
+
+
 def test_assignment_goes_through_the_validators() -> None:
     """The CLI writes onto Settings, so assignment must validate like env does."""
     settings = Settings()

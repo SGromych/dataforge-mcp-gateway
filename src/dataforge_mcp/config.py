@@ -86,6 +86,23 @@ class Settings(BaseSettings):
             )
         return normalized
 
+    @field_validator("mcp_auth_token", mode="before")
+    @classmethod
+    def _blank_token_means_none(cls, value: object) -> object:
+        """An empty `MCP_AUTH_TOKEN` must mean "no auth", not "the empty token".
+
+        `MCP_AUTH_TOKEN=` in a .env file, or `${MCP_AUTH_TOKEN:-}` in compose with
+        nothing exported, used to install the bearer middleware with an empty secret:
+        every well-formed request was rejected and the startup log still said
+        `auth=bearer`. Silence in the wrong direction, so it is normalized here.
+        """
+        if value is None:
+            return None
+        raw = value.get_secret_value() if isinstance(value, SecretStr) else value
+        if isinstance(raw, str) and not raw.strip():
+            return None
+        return value
+
     @field_validator("mcp_http_path")
     @classmethod
     def _normalize_http_path(cls, value: str) -> str:
