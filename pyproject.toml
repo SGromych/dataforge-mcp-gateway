@@ -13,9 +13,9 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.2",
     "structlog>=24.1",
-    # Верхняя граница обязательна: в mcp 2.x у mcp.server.Server больше нет
-    # декораторов list_tools()/call_tool(), и сервер падает на старте с
-    # AttributeError. Проверено: 1.30.0 работает, 2.2.0 — нет.
+    # An upper bound is mandatory: mcp 2.x dropped the list_tools()/call_tool()
+    # decorators from mcp.server.Server, so an unpinned install starts and dies
+    # with AttributeError. Verified: 1.30.0 works, 2.2.0 does not.
     "mcp>=1.26,<2",
     "starlette>=0.37",
     "uvicorn>=0.30",
@@ -33,8 +33,19 @@ dev = [
 [project.scripts]
 dataforge-mcp = "dataforge_mcp.cli:main"
 
+# The distribution must not depend on .gitignore. A stray `cache/` rule once matched
+# src/dataforge_mcp/cache/ and hatchling, which honours VCS ignore files by default,
+# silently shipped a wheel without that package: `pip install` succeeded and
+# `python -m dataforge_mcp` died with ModuleNotFoundError.
+[tool.hatch.build]
+ignore-vcs = true
+exclude = ["__pycache__", "*.py[cod]"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/dataforge_mcp"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/", "tests/", "docs/api/", "README.md", "CLAUDE.md", "pyproject.toml"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
