@@ -6,7 +6,7 @@ build/
 .eggs/
 *.egg
 .env
-cache/
+/cache/
 .venv/
 venv/
 .pytest_cache/

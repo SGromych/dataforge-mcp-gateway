@@ -13,7 +13,10 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.2",
     "structlog>=24.1",
-    "mcp>=1.26",
+    # Верхняя граница обязательна: в mcp 2.x у mcp.server.Server больше нет
+    # декораторов list_tools()/call_tool(), и сервер падает на старте с
+    # AttributeError. Проверено: 1.30.0 работает, 2.2.0 — нет.
+    "mcp>=1.26,<2",
     "starlette>=0.37",
     "uvicorn>=0.30",
 ]
