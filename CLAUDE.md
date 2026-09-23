@@ -63,12 +63,13 @@ Module map:
 | `transport/auth.py` | `BearerAuthMiddleware` — raw ASGI, never `BaseHTTPMiddleware` (it breaks SSE) |
 | `mcp/tools_read.py` / `tools_write.py` | Tool definitions + `Handler` registries |
 | `mcp/schema_fragments.py` | Reusable inputSchema pieces and filter value catalogues |
-| `mcp/tools.py` | Composition, `register_tools`, `_dispatch` |
+| `mcp/tools.py` | Composition, `build_tool_handlers` (the SDK's `on_list_tools` / `on_call_tool`), `_dispatch` |
+| `mcp/arguments.py` | `prepare_arguments` — coercion and validation of tool arguments |
 | `application/use_cases.py` | `SemanticService` — reads |
 | `application/write_use_cases.py` | `WriteUseCasesMixin` — writes |
 | `application/invalidation.py` | `WriteScope` and the cache prefixes each scope drops |
 | `dataforge/read_client.py` / `write_client.py` | `ReadMixin` / `WriteMixin` of `DataForgeClient` |
-| `dataforge/client.py` | Transport: retries, idempotency, `_write`, path helpers |
+| `dataforge/client.py` | Transport: retries, idempotency, `_write`, `parse_json`, path helpers |
 | `dataforge/schemas.py` | Raw response models |
 | `dataforge/write_schemas.py` | Strict request bodies |
 
@@ -88,6 +89,9 @@ These are easy to break and are enforced by tests:
 - **Request bodies are strict** (`extra="forbid"`), mirroring the server's `unknown_field` rule so typos fail locally with the same error shape.
 - **Reference columns are strings, not booleans.** `required`, `relevance`, `visibility` come back as localized labels and are written as `"true"` / `"false"`.
 - **Test fixtures are transcribed from the API documentation**, never invented. `tests/fixtures/api_v2.py` is what gets updated first when the API changes.
+- **The distribution never depends on `.gitignore`.** `ignore-vcs = true` in `pyproject.toml` plus `tests/test_packaging.py`: a `cache/` rule once matched `src/dataforge_mcp/cache/`, the wheel shipped without the package, and every entry point died with `ModuleNotFoundError` while `pip install` reported success.
+- **Tool arguments are validated here, not by the SDK.** `mcp/arguments.py` runs before dispatch: unambiguous values are coerced (`"18"` -> `18`, `"true"` -> `True`, `True` -> `"true"` for reference columns) and anything left over comes back in the documented envelope with every offending field at once. Declared schemas keep saying `integer`.
+- **Every read parses through `DataForgeClient.parse_json`.** A base URL aimed at the site root answers HTML with HTTP 200; the guard turns that into `DATAFORGE_INVALID_RESPONSE` with the fix in the hint instead of a bare `JSONDecodeError`.
 
 ## DataForge API v2 (`/df-api/v2/`)
 
@@ -106,7 +110,7 @@ All requests send `X-Api-Key`. `{v}` = `/df-api/v2/projects/{project_id}/version
 ## MCP Tools
 
 65 tools: 24 read-only, 41 that change state (38 of which write to DataForge; the rest are
-cache refresh and two import dry runs). Every tool carries `ToolAnnotations` — `readOnlyHint` for reads, `destructiveHint` for anything that deletes or overwrites. These annotations are the only pre-call warning a client can show, so they must stay accurate.
+cache refresh and two import dry runs). Every tool carries `ToolAnnotations` — `readOnlyHint` for reads, `destructiveHint` for anything that deletes or overwrites. These annotations are the only pre-call warning a client can show, so they must stay accurate. A result carrying an `error` object is also flagged with `isError`.
 
 `df_write_*` tools take `mode: create|replace|update` — one tool per entity instead of three near-identical ones. Fact-table composition collapses 8 endpoints into `df_assign_to_fact_table` / `df_unassign_from_fact_table` with `element_type`; verification filters collapse 8 into two tools that pick the path by the presence of `fact_table_id`.
 
@@ -132,7 +136,7 @@ Decisions and the alternatives weighed are recorded in `docs/api/transport-decis
 - `pydantic` v2 for models, `pydantic-settings` for config (`SecretStr` for API keys)
 - `httpx` for HTTP, `structlog` for logging, `mcp` SDK for the protocol
 - `pytest` + `pytest-asyncio`, `respx` for HTTP mocking, `jsonschema` for schema checks, `ruff` for linting
-- `mcp>=1.26` is a hard floor: `StreamableHTTPSessionManager` and `streamable_http_client` need it
+- `mcp>=2.2,<3` — both bounds are load-bearing. 2.x replaced the `@server.list_tools()` / `@server.call_tool()` decorators with `on_list_tools` / `on_call_tool` constructor handlers and stopped validating tool arguments; 1.x cannot run this code, and `Server` is low-level enough that a 3.x may rearrange it again. Rationale: `docs/api/transport-decisions.md` §18
 - Line length 99; comments and code in English
 
 ## Config
@@ -159,3 +163,7 @@ Settings via env vars or `.env`. Key variables: `DATAFORGE_BASE_URL`, `DATAFORGE
 Mock DataForge with `respx`; fixtures come from `tests/fixtures/api_v2.py`. Coverage spans the client (read and write), transport, errors, normalizer, cache, service and the MCP layer — including an in-memory end-to-end test over the real MCP protocol (`tests/test_mcp_server.py`) and a contract test asserting the tool↔handler bijection and JSON Schema validity (`tests/test_mcp_contract.py`).
 
 The Streamable HTTP transport is tested over a real ASGI stack without binding a socket: `create_session_manager` and `build_app` are separate so a test can enter `manager.run()` by hand and drive the app through `httpx.ASGITransport` (`tests/test_mcp_streamable_http.py`), including the full MCP client via `streamable_http_client`. Keep that split — collapsing it into `run_streamable_http` would make the transport untestable without a socket.
+
+Two failures found only in the field have their own guards: `tests/test_packaging.py` (a source module that is untracked, ignored, or missing from the wheel) and `tests/test_mcp_arguments.py` (what an agent may send and what a rejection tells it).
+
+The SDK client speaks `httpx2`; our DataForge calls speak `httpx`. That is what lets `respx` keep mocking DataForge while a real MCP client drives the app.

@@ -23,9 +23,10 @@ Each entry: **Context** → **Options** → **Decision** → **Revisit when**.
 | [12](#12-validate-mcp_transport-and-fail-loudly) | Validate `MCP_TRANSPORT` and fail loudly | Settled |
 | [13](#13-no-eventstore-streams-are-not-resumable) | No `EventStore`, streams not resumable | **Deferred** |
 | [14](#14-target-the-session-based-revisions-not-the-2026-07-28-draft) | Target session-based revisions, not the draft | **Deferred** |
-| [15](#15-raise-the-mcp-floor-to-126) | Raise the `mcp` floor to 1.26 | Settled |
+| [15](#15-raise-the-mcp-floor-to-126) | Raise the `mcp` floor to 1.26 | Superseded by [18](#18-move-to-the-mcp-sdk-2x) |
 | [16](#16-register-both-mcp-and-mcp) | Register both `/mcp` and `/mcp/` | Settled |
 | [17](#17-collapse-transport-dispatch-into-one-function) | Collapse transport dispatch into one function | Settled |
+| [18](#18-move-to-the-mcp-sdk-2x) | Move to the MCP SDK 2.x | Settled with the owner |
 
 ---
 
@@ -479,6 +480,8 @@ SDK, and it would still need re-verifying on every SDK change.
 
 **Revisit when.** Someone needs an older SDK — then bisect and lower it deliberately.
 
+**Superseded** by decision 18: the floor is now `2.2` and the range is bounded above.
+
 ---
 
 ## 16. Register both `/mcp` and `/mcp/`
@@ -522,6 +525,47 @@ Cons: three places to keep in sync, which is how `cli.py` already lagged behind.
 **Decision.** One dispatcher, covered by `tests/test_transport_dispatch.py`.
 
 **Revisit when.** Never.
+
+---
+
+## 18. Move to the MCP SDK 2.x
+
+**Context.** The dependency was `mcp>=1.26` with no upper bound, so a fresh install
+resolved to 2.2.0, where the low-level `Server` no longer has the `list_tools()` /
+`call_tool()` decorators. The process died at startup with `AttributeError` — found by
+running the gateway against a live DataForge instance, not by any test, because the test
+environment already had 1.x installed.
+
+**Options.**
+
+*Bound the range at `<2` and stay on 1.x.*
+Pros: one line; nothing else moves.
+Cons: freezes the server on a line that will stop receiving fixes, and every new install
+of the SDK diverges further from what we run.
+
+*Support both 1.x and 2.x behind a compatibility shim.*
+Pros: nobody has to upgrade.
+Cons: the handler signatures differ (`(name, arguments) -> list[TextContent]` against
+`(context, params) -> CallToolResult`), so the shim spreads into the one place that must
+stay obvious, and the tests would have to run twice to mean anything.
+
+*Move to 2.x.*
+Pros: current SDK; its lowlevel server no longer validates tool arguments, which is
+exactly where the bare `Input validation error: …` came from; the transports, security
+settings and session manager kept their names and signatures, so the move touched three
+files.
+Cons: 1.x installs stop working — a breaking change for anyone pinning the old SDK.
+
+**Decision.** Move to 2.x: `mcp>=2.2,<3`. The upper bound stays this time, because the
+2.x break is exactly the lesson: `Server` is a low-level API and a major release may
+rearrange it. Argument validation moved into `mcp/arguments.py`, which also made the
+error envelope consistent — see [schemas.md](schemas.md#tool-arguments).
+
+**Measured after the move:** the full suite (502 tests) passes on 2.2.0 with starlette
+1.7; `tools/list` returns all 65 tools over the wire; a mismatched `MCP-Protocol-Version`
+now answers 400 *with* a JSON-RPC error message, which 1.x left blank.
+
+**Revisit when.** 3.x appears — the same way: try it, run the suite, decide.
 
 ---
 

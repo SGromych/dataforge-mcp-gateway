@@ -66,7 +66,7 @@ Required request headers:
 | `Content-Type: application/json` | every POST | |
 | `Accept: application/json, text/event-stream` | every POST | **Both** types are mandatory. Sending only one answers `406` |
 | `Mcp-Session-Id` | every request after `initialize` | Value comes from the `initialize` response header |
-| `MCP-Protocol-Version` | after negotiation | Omitted, the server assumes `2025-03-26` |
+| `MCP-Protocol-Version` | optional, after negotiation | Send the `protocolVersion` the `initialize` result announced. A different value answers `400` with a JSON-RPC error explaining what the older revision would additionally require. Omitting the header is fine — the negotiated version applies |
 | `Authorization: Bearer <token>` | when `MCP_AUTH_TOKEN` is set | Everything but `/health` |
 
 ### Session lifecycle
@@ -249,6 +249,25 @@ docker compose up
 The image declares a `HEALTHCHECK` that probes `/health` and exits 0 immediately when
 `MCP_TRANSPORT=stdio`, so the same image serves both modes.
 
+### Windows: `docker run -e MCP_HTTP_PATH=/mcp` needs `MSYS_NO_PATHCONV=1`
+
+Under Git Bash (and MSYS in general) any argument that looks like an absolute path is
+rewritten before `docker` ever sees it, so `/mcp` becomes `C:/Program Files/Git/mcp`. The
+container then starts happily — and serves the endpoint at a path nobody will request:
+
+```bash
+MSYS_NO_PATHCONV=1 docker run -d --name dfmcp -p 8080:8080 \
+  -e MCP_TRANSPORT=streamable-http -e HOST=0.0.0.0 -e PORT=8080 \
+  -e MCP_HTTP_PATH=/mcp \
+  -e MCP_AUTH_TOKEN=... -e DATAFORGE_BASE_URL=... -e DATAFORGE_API_KEY=... \
+  dataforge-mcp:local
+
+docker logs dfmcp | grep mcp_transport_starting   # path must read "/mcp"
+```
+
+PowerShell and `docker compose` are unaffected. The startup log line is the check: it
+prints the effective path.
+
 ---
 
 ## Migrating off SSE
@@ -282,6 +301,9 @@ The tool surface is identical — only the wire protocol changes.
 | Client hangs, no events arrive | A proxy is buffering the SSE stream | `proxy_buffering off` |
 | Open WebUI cannot reach the server | `localhost` inside the container is the container | Use `http://host.docker.internal:8080/mcp` |
 | Server exits at startup with a validation error | Unknown `MCP_TRANSPORT` | Use `stdio`, `streamable-http` or `sse` |
+| `400 Bad Request` with a session id that was just minted | `MCP-Protocol-Version` differs from the version agreed at `initialize` | Echo the `protocolVersion` from the `initialize` result, or drop the header. The 400 body names the cause |
+| Endpoint missing although the log says the server started | Git Bash rewrote `-e MCP_HTTP_PATH=/mcp` into a Windows path | Prefix the command with `MSYS_NO_PATHCONV=1` (see above) |
+| `401` on every request, and no token was ever issued | `MCP_AUTH_TOKEN` set to an empty value | Leave it unset, or set a real token. An empty value is read as "no authentication" since 0.3.1 |
 
 ---
 

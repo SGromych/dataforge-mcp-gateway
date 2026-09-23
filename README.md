@@ -5,10 +5,10 @@
 **Give your AI agent the business meaning behind your analytics — and the power to change it.**
 
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![MCP](https://img.shields.io/badge/MCP-1.26-6E56CF)](https://modelcontextprotocol.io/)
+[![MCP](https://img.shields.io/badge/MCP%20SDK-2.x-6E56CF)](https://modelcontextprotocol.io/)
 [![DataForge API](https://img.shields.io/badge/DataForge%20API-v2-2479BC)](https://businessqlik.com)
 [![Tools](https://img.shields.io/badge/tools-65-success)](#what-you-get)
-[![Tests](https://img.shields.io/badge/tests-478%20passing-brightgreen)](#development)
+[![Tests](https://img.shields.io/badge/tests-502%20passing-brightgreen)](#development)
 [![License](https://img.shields.io/badge/license-Proprietary-lightgrey)](#license)
 
 [Quick start](#quick-start) · [Tools](#what-you-get) · [Writing data](#writing-data) · [Open WebUI](#open-webui) · [Documentation](#documentation)
@@ -107,6 +107,11 @@ DATAFORGE_BASE_URL=https://api.prod-df.businessqlik.com
 DATAFORGE_API_KEY=your_api_key_here
 ```
 
+`DATAFORGE_BASE_URL` is the root of the **API**, not of the site — requests go to
+`<base>/df-api/v2/…`. Installations that serve the API behind a prefix need it spelled out
+(`https://dataforge.example.com/api`); point it at the site root and the web app answers
+with HTML and `HTTP 200`, which the server reports as `DATAFORGE_INVALID_RESPONSE`.
+
 > [!WARNING]
 > **The key decides what an agent can destroy.** `analyst` / `viewer` → effectively
 > read-only. `developer` and above → can delete measures, versions and whole projects.
@@ -184,7 +189,8 @@ Open WebUI speaks **Streamable HTTP only**, which this server now serves nativel
 
 ```bash
 cp .env.example .env
-# set DATAFORGE_API_KEY, and MCP_AUTH_TOKEN
+# set DATAFORGE_API_KEY, and MCP_AUTH_TOKEN:
+#   python -c "import secrets; print(secrets.token_urlsafe(32))"
 docker compose up -d
 ```
 
@@ -351,6 +357,20 @@ whole scope they touched. A read right after a write always hits the API.
 
 </details>
 
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Tools fail with `DATAFORGE_INVALID_RESPONSE`, or `df_health` returns `product_api_status: unavailable` with a `product_api_error` about HTML | `DATAFORGE_BASE_URL` points at the site root, so the web app answers instead of the API | Add the API prefix, usually `/api` |
+| `ModuleNotFoundError: No module named 'dataforge_mcp.cache'` | Installed from a tree older than 0.3.1, where `.gitignore` kept the package out of the wheel | Reinstall from 0.3.1 or newer |
+| `AttributeError: 'Server' object has no attribute 'list_tools'` | MCP SDK version mismatch | This server needs `mcp>=2.2,<3`; re-run `pip install -e ".[dev]"` |
+| `Invalid tool arguments` | An argument is missing, misspelled, or a type that cannot be coerced | Read `fields[]` — each entry names the argument and what was expected. Ids may be strings: `"18"` is accepted |
+| On Windows, the endpoint 404s although the container started cleanly | Git Bash rewrote `-e MCP_HTTP_PATH=/mcp` into `C:/Program Files/Git/mcp` | Prefix the command with `MSYS_NO_PATHCONV=1`, or use `docker compose` |
+| Every request gets `401` and no token was ever set | `MCP_AUTH_TOKEN` present but empty | Unset it, or give it a real value |
+
+More, per area: [configuration.md](docs/api/configuration.md#troubleshooting) ·
+[transports.md](docs/api/transports.md#troubleshooting)
+
 ## Documentation
 
 | | |
@@ -380,7 +400,7 @@ whole scope they touched. A read right after a write always hits the API.
 
 ```bash
 pip install -e ".[dev]"
-pytest                                       # 478 tests
+pytest                                       # 502 tests
 pytest tests/test_mcp_server.py -v           # end-to-end over MCP, stdio path
 pytest tests/test_mcp_streamable_http.py -v  # end-to-end over MCP, HTTP path
 ruff check src/ tests/

@@ -6,13 +6,19 @@
 pip install -e ".[dev]"
 ```
 
+Python 3.11+ and the MCP SDK **2.x** (`mcp>=2.2,<3`). The 1.x SDK cannot run this server:
+its low-level `Server` had a different registration API — see
+[transport-decisions.md](transport-decisions.md#18-move-to-the-mcp-sdk-2x). If an existing
+checkout was installed before this change, re-run the command above to pick up the new
+floor.
+
 ## Environment Variables
 
 Settings come from environment variables or a `.env` file.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATAFORGE_BASE_URL` | `https://api.prod-df.businessqlik.com` | DataForge API base URL |
+| `DATAFORGE_BASE_URL` | `https://api.prod-df.businessqlik.com` | Root of the **API**, not of the site. Requests go to `<base>/df-api/v2/…`, so an installation serving the API behind a prefix needs it included: `https://dataforge.example.com/api` |
 | `DATAFORGE_API_KEY` | — (required) | API key sent as `X-Api-Key` |
 | `DEFAULT_LANGUAGE` | `ru` | Default language for localized labels (`ru` / `en`) |
 | `CACHE_BACKEND` | `file` | Cache backend (only `file` is implemented) |
@@ -32,7 +38,7 @@ in [transports.md](transports.md).
 | `HOST` | `0.0.0.0` | Bind address. A loopback value also enables Origin validation by default |
 | `PORT` | `8080` | Bind port |
 | `MCP_HTTP_PATH` | `/mcp` | Path of the MCP endpoint (`streamable-http` only) |
-| `MCP_AUTH_TOKEN` | — (unset) | Bearer token required on every request but `/health`. Unset means no authentication |
+| `MCP_AUTH_TOKEN` | — (unset) | Bearer token required on every request but `/health`. Unset **or empty** means no authentication — an empty value never becomes an empty token |
 | `MCP_ALLOWED_HOSTS` | — (unset) | Comma-separated `Host` allow-list. Mismatch answers `421` |
 | `MCP_ALLOWED_ORIGINS` | — (unset) | Comma-separated `Origin` allow-list. Mismatch answers `403` |
 | `MCP_CORS_ORIGINS` | — (unset) | Comma-separated CORS origins. Only for browser-based MCP clients |
@@ -70,6 +76,19 @@ SSH keys and passwords) are never logged.
 > `sse` it is reachable by anyone who can route to the port, carrying exactly the rights
 > above. **Set `MCP_AUTH_TOKEN` for any bind that is not loopback.** The deprecated `sse`
 > transport has no authentication at all — see [transports.md](transports.md).
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `DATAFORGE_INVALID_RESPONSE`, or `df_health` reporting `product_api_status: unavailable` with a `product_api_error` about HTML | `DATAFORGE_BASE_URL` points at the site root, so the single-page app answers `/df-api/v2/…` with HTML and HTTP 200 | Point it at the API root; many installations serve it under `https://<host>/api` |
+| `ModuleNotFoundError: No module named 'dataforge_mcp.cache'` | An install from before 0.3.1, built from a tree where `.gitignore` swallowed the package | Reinstall from 0.3.1 or later |
+| `AttributeError: 'Server' object has no attribute 'list_tools'` | MCP SDK 1.x against 0.3.1+, or 2.x against 0.3.0 | Align them: this version needs `mcp>=2.2,<3` |
+| `Invalid tool arguments` with `fields[]` | An argument is missing, misspelled or of a type that cannot be coerced | The `fields[]` entries name each one; `expected` says what the schema wants |
+| `403 DF_API.WRITE_ACCESS_DENIED` on every write | The API key's effective project role is below `developer` | Intended for read-only keys; issue a `developer` key only if writes are wanted |
+| Endpoint unreachable on Windows although the server logged a clean start | Git Bash rewrote `-e MCP_HTTP_PATH=/mcp` into a Windows path | `MSYS_NO_PATHCONV=1 docker run …` — see [transports.md](transports.md#windows-docker-run--e-mcp_http_pathmcp-needs-msys_no_pathconv1) |
+
+---
 
 ## Rate limits
 
@@ -155,7 +174,7 @@ SemanticService (application/) ── cache-first reads, scope-invalidating writ
 ## Development
 
 ```bash
-pytest                                       # run all tests (478)
+pytest                                       # run all tests (502)
 pytest tests/test_mcp_server.py -v           # end-to-end over MCP, stdio path, no network
 pytest tests/test_mcp_streamable_http.py -v  # end-to-end over MCP, HTTP path, no socket
 ruff check src/ tests/                       # lint
@@ -175,5 +194,7 @@ ruff format src/ tests/                      # format
 | `test_mcp_server.py` | Full MCP protocol through an in-memory client (stdio path) |
 | `test_mcp_streamable_http.py` | The Streamable HTTP wire contract, bearer auth, Origin validation, and full MCP over ASGI |
 | `test_transport_dispatch.py` | Transport validation, dispatch and the CLI surface |
+| `test_mcp_arguments.py` | Argument coercion and the error envelope a rejected call receives |
+| `test_packaging.py` | Every source module is committed and reaches the distribution |
 
 When the DataForge API changes, `tests/fixtures/api_v2.py` is what gets updated first.

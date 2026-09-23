@@ -182,6 +182,19 @@ Returned by `df_get_data_mart_view`, and embedded (without `connection`) in
 
 No connection to the target database is made — this is what the platform knows.
 
+> **The object does not say which database physically holds the table.** `database` is the
+> engine slug (`clickhouse`), not a database name; `schema` is often `null`; and
+> `connection` names the **source** connection of the mart, which on a deployment with a
+> separate mart store is not where the table ended up. Field verification against a live
+> instance found a mart's table in the mart store while `connection` still pointed at the
+> source database, and three declared marts were absent from every database reachable
+> through the listed connections.
+>
+> A client that needs to query the table directly therefore cannot derive its address from
+> this response. Target placement (`target_connection_id` / `target_database` /
+> `target_schema`) has been requested from the DataForge API team; until the API returns
+> it, ask the platform administrator where marts are materialized.
+
 ---
 
 ## Filter Value Catalogues
@@ -266,8 +279,34 @@ Keys outside the catalogue degrade by HTTP status, exactly as the API does:
 | `DATAFORGE_INTERNAL_ERROR` | 500 | Unexpected server failure; no internal details are returned |
 | `DATAFORGE_TIMEOUT` | — | Request timed out |
 | `DATAFORGE_CONNECTION_ERROR` | — | Network failure |
+| `DATAFORGE_INVALID_RESPONSE` | any | The endpoint answered with something other than JSON — almost always `DATAFORGE_BASE_URL` pointing at the site root instead of the API root |
 
 Write-specific codes are listed in the [Write Tools Reference](tools-write.md).
+
+### `DATAFORGE_INVALID_RESPONSE`
+
+Paths are built as `<DATAFORGE_BASE_URL>/df-api/v2/...`. Point the base URL at the root of
+the **site** rather than the root of the **API** and the single-page app answers instead —
+with HTML and `HTTP 200`, which is why this is not a 404. The error names the cause:
+
+```json
+{
+  "error": {
+    "code": "DATAFORGE_INVALID_RESPONSE",
+    "message": "The API answered HTTP 200 with text/html instead of JSON",
+    "http_status": 200,
+    "hint": "The endpoint answered with something that is not JSON - usually the HTML of a web page, which means DATAFORGE_BASE_URL points at the site root instead of the API root. Many installations serve the API under https://<host>/api.",
+    "details": {
+      "content_type": "text/html; charset=utf-8",
+      "body_preview": "<!doctype html><html>…",
+      "path": "/df-api/v2/projects"
+    }
+  }
+}
+```
+
+`df_health` reports the same failure as `product_api_error`, so one call diagnoses it.
+A JSON body that arrives without a `content-type` header still parses — the body decides.
 
 ### Retry behaviour
 
@@ -281,3 +320,41 @@ Write-specific codes are listed in the [Write Tools Reference](tools-write.md).
 
 Since every write generated through this server carries an `Idempotency-Key`
 automatically, the last row applies only to hand-rolled client calls.
+
+---
+
+## Tool Arguments
+
+Arguments are validated by this server, not by the MCP SDK, and a rejection uses the same
+envelope as everything else — `fields[]` names every offending argument at once:
+
+```json
+{
+  "error": {
+    "code": "DATAFORGE_VALIDATION_FAILED",
+    "message": "Invalid tool arguments",
+    "fields": [
+      { "field": "project_id", "code": "invalid_value", "expected": "integer", "received": "str" },
+      { "field": "projectId", "code": "unknown_field" },
+      { "field": "version_id", "code": "missing_field" }
+    ],
+    "hint": "Check fields[]: unknown_field means remove it, …"
+  }
+}
+```
+
+Unambiguous values are coerced rather than rejected, because clients keep ids in all sorts
+of places:
+
+| Declared | Also accepted | Example |
+|---|---|---|
+| `integer` | a numeric string, a whole float | `"18"`, `18.0` → `18` |
+| `number` | a numeric string | `"1.5"` → `1.5` |
+| `boolean` | `"true"`/`"false"`, `"yes"`/`"no"`, `"on"`/`"off"`, `1`/`0` | `"false"` → `false` |
+| `string` | a number, a boolean | `true` → `"true"` (the spelling reference columns use) |
+
+Nested objects and array items follow the same rules. `true` is never accepted as an
+`integer` — it is a boolean everywhere but in Python's type system.
+
+A tool result that carries an `error` object is also flagged with `isError` on the
+protocol level, so a client sees the failure without parsing the body.

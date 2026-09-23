@@ -112,6 +112,14 @@ Returns the full [physical view object](schemas.md#physical-view-object), includ
 `is_stale: true` means the mart's configuration changed after deployment and the object no
 longer matches it — it needs to be rebuilt.
 
+**Known limitation — the response does not locate the table.** `database` carries the
+engine slug rather than a database name, `schema` is frequently `null`, and `connection`
+is the mart's *source* connection. Where marts are materialized into a separate store,
+none of those three is the address of the table, and there is no field that is. This is an
+API gap, not a gateway one: `target_connection_id` / `target_database` / `target_schema`
+have been requested from the DataForge API team. Until then, a client that wants to read a
+mart's table directly has to be told where marts live.
+
 ---
 
 ## `df_generate_sql`
