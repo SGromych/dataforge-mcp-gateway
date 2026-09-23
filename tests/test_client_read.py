@@ -9,6 +9,7 @@ Two regressions are locked down here, both of which used to pass silently:
 
 from __future__ import annotations
 
+import json
 import re
 
 import httpx
@@ -477,3 +478,47 @@ async def test_unknown_fields_do_not_break_parsing(client: DataForgeClient) -> N
     async with client:
         resp = await client.get_measures(392, 948)
     assert resp.measures[0].measure_name == "Total revenue"
+
+
+# ---------------------------------------------------------------------------
+# Non-JSON answers (the base-URL trap)
+# ---------------------------------------------------------------------------
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_html_answer_becomes_a_diagnosable_error(client: DataForgeClient) -> None:
+    """A base URL pointing at the site root serves the SPA, with HTTP 200.
+
+    Before this, `resp.json()` raised and the agent saw `JSONDecodeError` - true, but
+    useless. The one fact that fixes it (point DATAFORGE_BASE_URL at the API root,
+    often `https://<host>/api`) now travels with the error.
+    """
+    respx.get(f"{BASE}/df-api/v2/projects").mock(
+        return_value=httpx.Response(
+            200,
+            html="<!doctype html><html><head><title>DataForge</title></head></html>",
+        )
+    )
+
+    async with client:
+        with pytest.raises(DataForgeError) as exc_info:
+            await client.get_projects()
+
+    error = exc_info.value
+    assert error.code is ErrorCode.DATAFORGE_INVALID_RESPONSE
+    assert "/api" in (error.hint or "")
+    assert error.details["content_type"].startswith("text/html")
+    assert error.details["body_preview"].startswith("<!doctype html")
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_json_without_a_content_type_still_parses(client: DataForgeClient) -> None:
+    """Never trade a working deployment for a stricter check: the body decides."""
+    respx.get(f"{BASE}/df-api/v2/projects").mock(
+        return_value=httpx.Response(200, content=json.dumps(fx.PROJECTS_200).encode(), headers={})
+    )
+    async with client:
+        resp = await client.get_projects()
+    assert resp.projects

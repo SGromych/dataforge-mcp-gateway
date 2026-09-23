@@ -31,7 +31,7 @@ from dataforge_mcp.cache.store import (
 )
 from dataforge_mcp.config import Settings
 from dataforge_mcp.dataforge.client import DataForgeClient
-from dataforge_mcp.errors import DataForgeError
+from dataforge_mcp.errors import DataForgeError, ErrorCode
 from dataforge_mcp.logging import get_logger
 from dataforge_mcp.semantic.models import CanonicalProject, CanonicalVersion
 from dataforge_mcp.semantic.normalizer import (
@@ -75,20 +75,33 @@ class SemanticService(WriteUseCasesMixin):
         return language or self.settings.default_language
 
     async def check_health(self) -> dict[str, Any]:
+        """Probe the API and the cache, and say *why* if the API is unreachable.
+
+        Swallowing the reason made a misconfigured `DATAFORGE_BASE_URL` look like an
+        outage: the tool answered `product_api_status: unavailable` and the agent had
+        nothing to act on. The failure is reported in the same shape as any other
+        error, hint included.
+        """
         cache_ok = await self.cache.is_healthy()
-        api_ok = True
+        failure: dict[str, Any] | None = None
         try:
             async with self._new_client() as c:
                 await c.get_projects(page=1, page_size=1)
-        except Exception:
-            api_ok = False
+        except DataForgeError as exc:
+            failure = exc.to_dict()["error"]
+        except Exception as exc:  # noqa: BLE001 - health never raises
+            failure = {"code": ErrorCode.DATAFORGE_INTERNAL_ERROR, "message": str(exc)}
 
-        return {
+        health: dict[str, Any] = {
             "server_status": "ok",
-            "product_api_status": "ok" if api_ok else "unavailable",
+            "product_api_status": "unavailable" if failure else "ok",
             "base_url": self.client.base_url,
             "cache_status": "ok" if cache_ok else "unavailable",
         }
+        if failure:
+            # The key never travels: DataForgeError messages carry API text, not headers.
+            health["product_api_error"] = failure
+        return health
 
     # -----------------------------------------------------------------------
     # Cache plumbing

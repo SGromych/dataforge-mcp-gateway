@@ -211,6 +211,39 @@ class DataForgeClient(ReadMixin, WriteMixin):
             )
         return DataForgeError(code=code, message=message, details=details, hint=hint)
 
+    @staticmethod
+    def parse_json(response: httpx.Response) -> Any:
+        """Parse a successful response body, or say why it is not an API answer.
+
+        A misconfigured base URL is the common case: many DataForge installations
+        serve the API under ``https://<host>/api``, and the bare host answers
+        ``/df-api/v2/...`` with the HTML of the single-page app. Letting
+        ``response.json()`` raise turned that into a bare ``JSONDecodeError`` with
+        no hint of the cause; here it becomes a normal error envelope carrying the
+        one instruction that fixes it.
+        """
+        content_type = response.headers.get("content-type", "")
+        looks_like_json = "json" in content_type.lower()
+        try:
+            if not looks_like_json and content_type:
+                raise ValueError(f"unexpected content-type {content_type!r}")
+            return response.json()
+        except ValueError as exc:
+            raise DataForgeError(
+                code=ErrorCode.DATAFORGE_INVALID_RESPONSE,
+                message=(
+                    f"The API answered HTTP {response.status_code} with "
+                    f"{content_type or 'an unknown content type'} instead of JSON"
+                ),
+                details={
+                    "http_status": response.status_code,
+                    "path": str(response.request.url.path) if response.request else None,
+                    "content_type": content_type,
+                    "body_preview": response.text[:200],
+                },
+                http_status=response.status_code,
+            ) from exc
+
     # -----------------------------------------------------------------------
     # Write helper
     # -----------------------------------------------------------------------

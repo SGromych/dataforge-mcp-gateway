@@ -47,6 +47,9 @@ class _Transport(Protocol):
     async def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response: ...
 
     @staticmethod
+    def parse_json(response: httpx.Response) -> Any: ...
+
+    @staticmethod
     def _v2_prefix(project_id: int, version_id: int) -> str: ...
 
     @staticmethod
@@ -80,7 +83,7 @@ class ReadMixin:
         self: _Transport, page: int = 1, page_size: int = 100
     ) -> ProjectListResponse:
         resp = await self._request("GET", "/df-api/v2/projects", params=_paged(page, page_size))
-        return ProjectListResponse.model_validate(resp.json())
+        return ProjectListResponse.model_validate(self.parse_json(resp))
 
     async def get_versions(
         self: _Transport, project_id: int, page: int = 1, page_size: int = 100
@@ -90,7 +93,7 @@ class ReadMixin:
             f"/df-api/v2/projects/{project_id}/versions",
             params=_paged(page, page_size),
         )
-        return VersionListResponse.model_validate(resp.json())
+        return VersionListResponse.model_validate(self.parse_json(resp))
 
     # -- RMD content --------------------------------------------------------
 
@@ -108,7 +111,7 @@ class ReadMixin:
         resp = await self._request(
             "GET", f"{self._v2_prefix(project_id, version_id)}/measures", params=params
         )
-        return MeasureListResponse.model_validate(resp.json())
+        return MeasureListResponse.model_validate(self.parse_json(resp))
 
     async def get_dimensions(
         self: _Transport,
@@ -122,7 +125,7 @@ class ReadMixin:
         resp = await self._request(
             "GET", f"{self._v2_prefix(project_id, version_id)}/dimensions", params=params
         )
-        return DimensionListResponse.model_validate(resp.json())
+        return DimensionListResponse.model_validate(self.parse_json(resp))
 
     async def get_facts(
         self: _Transport,
@@ -136,7 +139,7 @@ class ReadMixin:
         resp = await self._request(
             "GET", f"{self._v2_prefix(project_id, version_id)}/facts", params=params
         )
-        return FactListResponse.model_validate(resp.json())
+        return FactListResponse.model_validate(self.parse_json(resp))
 
     async def get_rmd(
         self: _Transport,
@@ -151,7 +154,7 @@ class ReadMixin:
         resp = await self._request(
             "GET", f"{self._v2_prefix(project_id, version_id)}/rmd", params=params
         )
-        return RmdExportResponse.model_validate(resp.json())
+        return RmdExportResponse.model_validate(self.parse_json(resp))
 
     # -- data marts ---------------------------------------------------------
 
@@ -177,7 +180,7 @@ class ReadMixin:
         resp = await self._request(
             "GET", f"{self._v2_prefix(project_id, version_id)}/data-marts", params=params
         )
-        return DataMartListResponse.model_validate(resp.json())
+        return DataMartListResponse.model_validate(self.parse_json(resp))
 
     async def get_data_mart(
         self: _Transport,
@@ -191,7 +194,7 @@ class ReadMixin:
             f"{self._v2_prefix(project_id, version_id)}/data-marts/{data_mart_id}",
             params={"language": language},
         )
-        return DataMartDetail.model_validate(resp.json())
+        return DataMartDetail.model_validate(self.parse_json(resp))
 
     async def get_data_mart_view(
         self: _Transport,
@@ -205,7 +208,7 @@ class ReadMixin:
             f"{self._v2_prefix(project_id, version_id)}/data-marts/{data_mart_id}/view",
             params={"language": language},
         )
-        return PhysicalViewResponse.model_validate(resp.json())
+        return PhysicalViewResponse.model_validate(self.parse_json(resp))
 
     async def generate_sql(
         self: _Transport,
@@ -232,7 +235,7 @@ class ReadMixin:
             f"{self._v2_prefix(project_id, version_id)}/data-marts/{data_mart_id}/generate-sql",
             params=params,
         )
-        return SqlGenerationResponse.model_validate(resp.json())
+        return SqlGenerationResponse.model_validate(self.parse_json(resp))
 
     # -- connections --------------------------------------------------------
 
@@ -255,7 +258,7 @@ class ReadMixin:
         resp = await self._request(
             "GET", f"{self._v2_prefix(project_id, version_id)}/connections", params=params
         )
-        return ConnectionListResponse.model_validate(resp.json())
+        return ConnectionListResponse.model_validate(self.parse_json(resp))
 
     async def get_connection(
         self: _Transport,
@@ -272,7 +275,7 @@ class ReadMixin:
             f"{self._v2_prefix(project_id, version_id)}/connections/{connection_id}",
             params=params,
         )
-        return ConnectionDetail.model_validate(resp.json())
+        return ConnectionDetail.model_validate(self.parse_json(resp))
 
     async def get_connection_schema(
         self: _Transport,
@@ -286,7 +289,7 @@ class ReadMixin:
             f"{self._v2_prefix(project_id, version_id)}/connections/{connection_id}/schema",
             params={"language": language},
         )
-        return ConnectionSchemaResponse.model_validate(resp.json())
+        return ConnectionSchemaResponse.model_validate(self.parse_json(resp))
 
     # -- dimension groups ---------------------------------------------------
 
@@ -302,7 +305,7 @@ class ReadMixin:
         resp = await self._request(
             "GET", f"{self._v2_prefix(project_id, version_id)}/dimension-groups", params=params
         )
-        return DimensionGroupListResponse.model_validate(resp.json())
+        return DimensionGroupListResponse.model_validate(self.parse_json(resp))
 
     async def get_dimension_group(
         self: _Transport,
@@ -316,7 +319,7 @@ class ReadMixin:
             f"{self._v2_prefix(project_id, version_id)}/dimension-groups/{dimension_group_id}",
             params={"language": language},
         )
-        return DimensionGroupDetail.model_validate(resp.json())
+        return DimensionGroupDetail.model_validate(self.parse_json(resp))
 
     # -- fact tables --------------------------------------------------------
 
@@ -332,7 +335,7 @@ class ReadMixin:
         resp = await self._request(
             "GET", f"{self._v2_prefix(project_id, version_id)}/fact-tables", params=params
         )
-        return FactTableListResponse.model_validate(resp.json())
+        return FactTableListResponse.model_validate(self.parse_json(resp))
 
     async def get_fact_table(
         self: _Transport,
@@ -349,7 +352,7 @@ class ReadMixin:
             f"{self._v2_prefix(project_id, version_id)}/fact-tables/{fact_table_id}",
             params=params,
         )
-        return FactTableDetail.model_validate(resp.json())
+        return FactTableDetail.model_validate(self.parse_json(resp))
 
     # -- relationships ------------------------------------------------------
 
@@ -371,7 +374,7 @@ class ReadMixin:
         resp = await self._request(
             "GET", f"{self._v2_prefix(project_id, version_id)}/relationships", params=params
         )
-        return RelationshipListResponse.model_validate(resp.json())
+        return RelationshipListResponse.model_validate(self.parse_json(resp))
 
     async def get_relationship(
         self: _Transport,
@@ -385,7 +388,7 @@ class ReadMixin:
             f"{self._v2_prefix(project_id, version_id)}/relationships/{relationship_id}",
             params={"language": language},
         )
-        return RelationshipDetail.model_validate(resp.json())
+        return RelationshipDetail.model_validate(self.parse_json(resp))
 
     # -- project access (doc section 9.9.7) ---------------------------------
 
@@ -395,7 +398,7 @@ class ReadMixin:
         resp = await self._request(
             "GET", f"{self._project_prefix(project_id)}/access", params={"language": language}
         )
-        payload = resp.json()
+        payload = self.parse_json(resp)
         return [ProjectAccessEntry.model_validate(entry) for entry in payload]
 
     # -- Git connections (doc section 9.9.11) -------------------------------
@@ -407,8 +410,8 @@ class ReadMixin:
         resp = await self._request(
             "GET", "/df-api/v2/git-connections", params=_paged(page, page_size)
         )
-        return GitConnectionListResponse.model_validate(resp.json())
+        return GitConnectionListResponse.model_validate(self.parse_json(resp))
 
     async def get_git_connection(self: _Transport, connection_id: int) -> GitConnectionItem:
         resp = await self._request("GET", f"/df-api/v2/git-connections/{connection_id}")
-        return GitConnectionItem.model_validate(resp.json())
+        return GitConnectionItem.model_validate(self.parse_json(resp))

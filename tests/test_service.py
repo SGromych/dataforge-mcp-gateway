@@ -407,6 +407,34 @@ async def test_health_reports_unavailable_api(service: SemanticService) -> None:
     health = await service.check_health()
     assert health["server_status"] == "ok"
     assert health["product_api_status"] == "unavailable"
+    assert health["product_api_error"]["code"] == ErrorCode.DATAFORGE_SERVER_ERROR
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_health_explains_a_base_url_pointing_at_the_site_root(
+    service: SemanticService,
+) -> None:
+    """The failure mode from the field: the SPA answers, so the body is HTML."""
+    respx.get(f"{BASE}/df-api/v2/projects").mock(
+        return_value=httpx.Response(200, html="<!doctype html><html><body>DataForge</body></html>")
+    )
+    health = await service.check_health()
+
+    assert health["product_api_status"] == "unavailable"
+    failure = health["product_api_error"]
+    assert failure["code"] == ErrorCode.DATAFORGE_INVALID_RESPONSE
+    assert "/api" in failure["hint"]
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_health_never_leaks_the_api_key(service: SemanticService) -> None:
+    respx.get(f"{BASE}/df-api/v2/projects").mock(
+        return_value=httpx.Response(401, json=fx.ERR_401_INVALID_API_KEY)
+    )
+    health = await service.check_health()
+    assert "test-api-key-12345" not in str(health)
 
 
 @respx.mock

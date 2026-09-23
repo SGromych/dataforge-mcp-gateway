@@ -83,6 +83,7 @@ class ErrorCode(StrEnum):
     DATAFORGE_UNPROCESSABLE_ENTITY = "DATAFORGE_UNPROCESSABLE_ENTITY"
 
     # --- transport / server -------------------------------------------------
+    DATAFORGE_INVALID_RESPONSE = "DATAFORGE_INVALID_RESPONSE"
     DATAFORGE_TIMEOUT = "DATAFORGE_TIMEOUT"
     DATAFORGE_RATE_LIMIT_EXCEEDED = "DATAFORGE_RATE_LIMIT_EXCEEDED"
     DATAFORGE_SERVER_ERROR = "DATAFORGE_SERVER_ERROR"
@@ -301,6 +302,11 @@ _HINTS: dict[ErrorCode, str] = {
         " Write endpoints require developer or above."
     ),
     ErrorCode.DATAFORGE_PAGE_SIZE_EXCEEDED: "page_size must be between 1 and 100.",
+    ErrorCode.DATAFORGE_INVALID_RESPONSE: (
+        "The endpoint answered with something that is not JSON - usually the HTML of a"
+        " web page, which means DATAFORGE_BASE_URL points at the site root instead of"
+        " the API root. Many installations serve the API under https://<host>/api."
+    ),
     ErrorCode.DATAFORGE_RATE_LIMIT_EXCEEDED: (
         "The API allows 100 requests per 60 seconds per API key. Wait and retry."
     ),
