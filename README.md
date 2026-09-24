@@ -383,6 +383,7 @@ More, per area: [configuration.md](docs/api/configuration.md#troubleshooting) ·
 | [Transports](docs/api/transports.md) | stdio, Streamable HTTP, auth, Origin validation, proxies |
 | [Open WebUI](docs/api/open-webui.md) | Step-by-step connection guide |
 | [Transport Decisions](docs/api/transport-decisions.md) | Why the transport works the way it does |
+| [Changelog](CHANGELOG.md) | What changed per release, and what breaks |
 
 ## Key Features
 

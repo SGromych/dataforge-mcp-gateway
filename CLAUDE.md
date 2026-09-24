@@ -138,6 +138,7 @@ Decisions and the alternatives weighed are recorded in `docs/api/transport-decis
 - `pytest` + `pytest-asyncio`, `respx` for HTTP mocking, `jsonschema` for schema checks, `ruff` for linting
 - `mcp>=2.2,<3` — both bounds are load-bearing. 2.x replaced the `@server.list_tools()` / `@server.call_tool()` decorators with `on_list_tools` / `on_call_tool` constructor handlers and stopped validating tool arguments; 1.x cannot run this code, and `Server` is low-level enough that a 3.x may rearrange it again. Rationale: `docs/api/transport-decisions.md` §18
 - Line length 99; comments and code in English
+- A user-visible change updates `CHANGELOG.md` under the version in `pyproject.toml`; anything that breaks an existing install goes under **Breaking**
 
 ## Config
 
