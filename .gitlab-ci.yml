@@ -1,0 +1,23 @@
+# Every merge into main (direct pushes are blocked by branch protection) is mirrored to
+# GitHub as a separate branch, so the GitHub main stays untouched.
+#
+# Requires a protected, masked CI/CD variable GITHUB_TOKEN: a GitHub PAT with
+# Contents: Read and write on the target repository.
+
+stages:
+  - sync
+
+sync-to-github:
+  stage: sync
+  image:
+    name: alpine/git:latest
+    entrypoint: [""]          # the image's entrypoint is `git`, which breaks the job shell
+  variables:
+    GIT_DEPTH: 0              # GitHub rejects a push from a shallow clone
+    GITHUB_REPO: github.com/SGromych/dataforge-mcp-gateway.git
+    GITHUB_BRANCH: sync/gitlab
+  resource_group: github-sync # two quick merges must not overtake each other
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"
+  script:
+    - git push --force "https://x-access-token:${GITHUB_TOKEN}@${GITHUB_REPO}" "${CI_COMMIT_SHA}:refs/heads/${GITHUB_BRANCH}"
