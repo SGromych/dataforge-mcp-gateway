@@ -1,8 +1,14 @@
 # Every merge into main (direct pushes are blocked by branch protection) is mirrored to
-# GitHub as a separate branch, so the GitHub main stays untouched.
+# GitHub: the commit is force-pushed to a separate branch, then a pull request from that
+# branch into the GitHub main is opened (or reused) and merged.
 #
 # Requires a protected, masked CI/CD variable GITHUB_TOKEN: a GitHub PAT with
-# Contents: Read and write on the target repository.
+# Contents: Read and write and Pull requests: Read and write on the target repository.
+#
+# The merge uses a merge commit on purpose: squash or rebase would rewrite the commits, and
+# the next force-pushed sync branch would carry already merged changes and conflict.
+# If the GitHub main requires reviews or status checks, the token's owner needs a bypass,
+# otherwise the merge is rejected with HTTP 405 and the job fails.
 
 stages:
   - sync
@@ -14,10 +20,62 @@ sync-to-github:
     entrypoint: [""]          # the image's entrypoint is `git`, which breaks the job shell
   variables:
     GIT_DEPTH: 0              # GitHub rejects a push from a shallow clone
+    GITHUB_SLUG: SGromych/dataforge-mcp-gateway
     GITHUB_REPO: github.com/SGromych/dataforge-mcp-gateway.git
     GITHUB_BRANCH: sync/gitlab
+    GITHUB_BASE: main
   resource_group: github-sync # two quick merges must not overtake each other
   rules:
     - if: $CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"
+  before_script:
+    - apk add --no-cache curl jq
   script:
     - git push --force "https://x-access-token:${GITHUB_TOKEN}@${GITHUB_REPO}" "${CI_COMMIT_SHA}:refs/heads/${GITHUB_BRANCH}"
+    - |
+      set -eu
+      API="https://api.github.com/repos/${GITHUB_SLUG}"
+      AUTH="Authorization: Bearer ${GITHUB_TOKEN}"
+      ACCEPT="Accept: application/vnd.github+json"
+      OWNER="${GITHUB_SLUG%%/*}"
+
+      # Reuse an open sync PR, otherwise open one
+      PR=$(curl -fsS -H "$AUTH" -H "$ACCEPT" \
+        "$API/pulls?state=open&base=${GITHUB_BASE}&head=${OWNER}:${GITHUB_BRANCH}" \
+        | jq -r '.[0].number // empty')
+      if [ -z "$PR" ]; then
+        RESP=$(curl -sS -H "$AUTH" -H "$ACCEPT" -X POST "$API/pulls" -d "$(jq -n \
+          --arg head "$GITHUB_BRANCH" \
+          --arg base "$GITHUB_BASE" \
+          --arg title "Sync from GitLab ${CI_COMMIT_SHORT_SHA}" \
+          --arg body "Mirrored from ${CI_PROJECT_URL}/-/commit/${CI_COMMIT_SHA}" \
+          '{head:$head, base:$base, title:$title, body:$body}')")
+        PR=$(echo "$RESP" | jq -r '.number // empty')
+        if [ -z "$PR" ]; then
+          if echo "$RESP" | grep -q "No commits between"; then
+            echo "GitHub ${GITHUB_BASE} already contains ${CI_COMMIT_SHA}, nothing to merge"
+            exit 0
+          fi
+          echo "$RESP" | jq .
+          exit 1
+        fi
+        echo "Opened PR #${PR}"
+      else
+        echo "Reusing open PR #${PR}"
+      fi
+
+      # GitHub computes mergeability asynchronously, so the first attempt may be refused.
+      # `sha` pins the merge to the commit this pipeline pushed.
+      for attempt in 1 2 3 4 5 6; do
+        CODE=$(curl -sS -o merge.json -w '%{http_code}' -H "$AUTH" -H "$ACCEPT" -X PUT \
+          "$API/pulls/${PR}/merge" \
+          -d "$(jq -n --arg sha "$CI_COMMIT_SHA" '{merge_method:"merge", sha:$sha}')")
+        if [ "$CODE" = 200 ]; then
+          echo "Merged PR #${PR} into ${GITHUB_BASE}"
+          exit 0
+        fi
+        echo "Attempt ${attempt}: HTTP ${CODE}"
+        jq . merge.json || cat merge.json
+        sleep 10
+      done
+      echo "PR #${PR} could not be merged: https://github.com/${GITHUB_SLUG}/pull/${PR}"
+      exit 1
