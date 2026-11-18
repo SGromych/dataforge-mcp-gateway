@@ -1,6 +1,7 @@
 # Every merge into main (direct pushes are blocked by branch protection) is mirrored to
 # GitHub: the commit is force-pushed to a separate branch, then a pull request from that
-# branch into the GitHub main is opened (or reused) and merged.
+# branch into the GitHub main is opened (or reused) and merged, and the branch is deleted.
+# A failed merge leaves the branch and the PR open for a human to look at.
 #
 # Requires a protected, masked CI/CD variable GITHUB_TOKEN: a GitHub PAT with
 # Contents: Read and write and Pull requests: Read and write on the target repository.
@@ -38,6 +39,15 @@ sync-to-github:
       ACCEPT="Accept: application/vnd.github+json"
       OWNER="${GITHUB_SLUG%%/*}"
 
+      # The sync branch is only a vehicle for the PR: drop it once main has the commit.
+      # The next run force-pushes it again.
+      delete_sync_branch() {
+        curl -fsS -H "$AUTH" -H "$ACCEPT" -X DELETE \
+          "$API/git/refs/heads/${GITHUB_BRANCH}" \
+          && echo "Deleted branch ${GITHUB_BRANCH}" \
+          || echo "Could not delete branch ${GITHUB_BRANCH}, leaving it"
+      }
+
       # Reuse an open sync PR, otherwise open one
       PR=$(curl -fsS -H "$AUTH" -H "$ACCEPT" \
         "$API/pulls?state=open&base=${GITHUB_BASE}&head=${OWNER}:${GITHUB_BRANCH}" \
@@ -53,6 +63,7 @@ sync-to-github:
         if [ -z "$PR" ]; then
           if echo "$RESP" | grep -q "No commits between"; then
             echo "GitHub ${GITHUB_BASE} already contains ${CI_COMMIT_SHA}, nothing to merge"
+            delete_sync_branch
             exit 0
           fi
           echo "$RESP" | jq .
@@ -71,6 +82,7 @@ sync-to-github:
           -d "$(jq -n --arg sha "$CI_COMMIT_SHA" '{merge_method:"merge", sha:$sha}')")
         if [ "$CODE" = 200 ]; then
           echo "Merged PR #${PR} into ${GITHUB_BASE}"
+          delete_sync_branch
           exit 0
         fi
         echo "Attempt ${attempt}: HTTP ${CODE}"
