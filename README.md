@@ -176,8 +176,9 @@ asyncio.run(main())
 > [!CAUTION]
 > **Before you paste this:** the key above decides whether an agent can delete your
 > projects. Use an `analyst` / `viewer` key for read-only work. Write tools carry
-> `readOnlyHint=false` and `destructiveHint=true`, so a well-behaved client asks you to
-> confirm — but that confirmation belongs to the client, not to this server.
+> `readOnlyHint=false` and, where they remove or overwrite data, `destructiveHint=true`, so
+> a well-behaved client asks you to confirm — but that confirmation belongs to the client,
+> not to this server.
 
 Then ask Claude: *"What measures are available in the Fashion Retail project?"* — it will
 chain `df_list_projects` → `df_list_versions` → `df_get_measures` on its own.
@@ -366,7 +367,7 @@ whole scope they touched. A read right after a write always hits the API.
 | `AttributeError: 'Server' object has no attribute 'list_tools'` | MCP SDK version mismatch | This server needs `mcp>=2.2,<3`; re-run `pip install -e ".[dev]"` |
 | `Invalid tool arguments` | An argument is missing, misspelled, or a type that cannot be coerced | Read `fields[]` — each entry names the argument and what was expected. Ids may be strings: `"18"` is accepted |
 | On Windows, the endpoint 404s although the container started cleanly | Git Bash rewrote `-e MCP_HTTP_PATH=/mcp` into `C:/Program Files/Git/mcp` | Prefix the command with `MSYS_NO_PATHCONV=1`, or use `docker compose` |
-| Every request gets `401` and no token was ever set | `MCP_AUTH_TOKEN` present but empty | Unset it, or give it a real value |
+| Every request gets `401` and no token was ever set | A version older than 0.3.1 with `MCP_AUTH_TOKEN` present but empty | Upgrade — since 0.3.1 an empty value means "no authentication" — or unset it, or give it a real value |
 
 More, per area: [configuration.md](docs/api/configuration.md#troubleshooting) ·
 [transports.md](docs/api/transports.md#troubleshooting)
